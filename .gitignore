@@ -216,3 +216,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- Prueba tecnica: nunca subir datos crudos ni secretos ---
+kit/
+*.zip
+.env
+*.pfx
+*.pem
+*.key
+salidas/
+.venv/
