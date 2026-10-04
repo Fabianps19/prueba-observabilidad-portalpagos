@@ -7,6 +7,7 @@ cd reto1-diagnostico
 python -m pip install -r requirements.txt
 python analizar.py --kit ../kit --salida resultados
 python -m pytest -q tests
+python generar_presentacion.py --kit ../kit --salida resultados   # opcional: resultados/presentacion.html
 ```
 
 Requiere el kit descomprimido en `../kit` (ver README principal).
@@ -21,7 +22,15 @@ Requiere el kit descomprimido en `../kit` (ver README principal).
 | `senales_diarias.csv` | Memoria pico de w3wp, p95 y disco libre por día |
 | `pronostico_disco.md` | Fecha estimada de llenado del disco C: y método |
 | `eventos_clave.csv` | Eventos de Windows relevantes, sin ruido (DCOM, Schannel, SCM) |
+| `analisis_avanzado.md` | Memoria vs. operaciones de pago, reintentos de confirmación, tráfico vs. línea base y detección simulada con reglas de alerta |
+| `powerbi/*.csv` | Tablas limpias para validar las cifras en Power BI (no se versionan; se regeneran). Guía: `POWERBI.md` |
+| `presentacion.html` | Resumen visual interactivo para la sustentación (Bootstrap 5 + Chart.js; flechas ← → para navegar) |
 | `*.png` | Memoria de w3wp, disco libre e incidente del 18-sep |
+
+## Documentos
+
+- `POSTMORTEM.md` / `POSTMORTEM.pdf`: post-mortem para la Dirección (3 páginas A4).
+- `POWERBI.md`: cómo validar cada cifra en Power BI con los mismos datos.
 
 ## Decisiones del análisis
 

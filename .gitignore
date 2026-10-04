@@ -226,3 +226,7 @@ kit/
 *.key
 salidas/
 .venv/
+# Notas personales de preparacion (no se entregan)
+notas-privadas/
+# Tablas para Power BI: se regeneran con analizar.py (pesadas)
+reto1-diagnostico/resultados/powerbi/

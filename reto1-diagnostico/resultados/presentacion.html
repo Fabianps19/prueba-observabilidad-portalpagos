@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="es" data-bs-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diagnóstico PortalPagos</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+  :root {
+    --surface-1: #fcfcfb; --surface-2: #f3f2ee; --ink: #0b0b0b; --ink-2: #52514e; --ink-3: #8a8984;
+    /* Paleta de marca: verde inspirado en Skandia (valores aproximados; ajustar aqui si se tiene el manual de marca) */
+    --brand: #00704a; --brand-dark: #00462e; --brand-soft: #e6f2ec;
+    --grid: #e3e6e3; --series-1: #00704a; --neutral-bar: #b7cfc3;
+    --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+    --accent: #00704a;
+    --bs-primary: #00704a; --bs-primary-rgb: 0,112,74; --bs-link-color: #00704a; --bs-link-hover-color: #00462e;
+  }
+  .text-primary { color: var(--brand) !important; }
+  .navbar-brand { color: var(--brand-dark) !important; }
+  #aviso-plantilla { display: none; }
+  body { background: var(--surface-1); color: var(--ink); font-size: 1.05rem; }
+  .navbar { background: rgba(252,252,251,.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--grid); }
+  .navbar .nav-link { color: var(--ink-2); font-size: .85rem; padding: .35rem .6rem; border-radius: .5rem; }
+  .navbar .nav-link.active { color: var(--accent); background: rgba(0,112,74,.10); font-weight: 600; }
+  section.slide { min-height: 100vh; padding: 6.5rem 0 4rem; scroll-margin-top: 0; border-bottom: 1px solid var(--grid); }
+  .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: .75rem; font-weight: 700; color: var(--accent); }
+  h1.display-5, h2 { font-weight: 700; letter-spacing: -.02em; }
+  h2 { font-size: 2.1rem; margin-bottom: .4rem; }
+  .lead-muted { color: var(--ink-2); font-size: 1.15rem; max-width: 52rem; }
+  .kpi { background: #fff; border: 1px solid var(--grid); border-radius: 1rem; padding: 1.25rem 1.4rem; height: 100%; }
+  .kpi .v { font-size: 2.6rem; font-weight: 800; line-height: 1; letter-spacing: -.03em; }
+  .kpi .l { color: var(--ink-2); font-size: .92rem; margin-top: .45rem; }
+  .kpi.crit { border-left: 5px solid var(--critical); }
+  .kpi.warn { border-left: 5px solid var(--serious); }
+  .kpi.info { border-left: 5px solid var(--series-1); }
+  .card-soft { background: #fff; border: 1px solid var(--grid); border-radius: 1rem; padding: 1.4rem; height: 100%; }
+  .pill { display: inline-flex; gap: .35rem; align-items: center; font-size: .78rem; font-weight: 600; padding: .2rem .6rem; border-radius: 99px; }
+  .pill.hecho { background: #e7f5e7; color: #0a6b0a; }
+  .pill.hip { background: #fff3dc; color: #7a5300; }
+  .pill.crit { background: #fbe5e5; color: #9b2222; }
+  .pill.alta { background: #fdece4; color: #9a4520; }
+  .pill.media { background: #fff3dc; color: #7a5300; }
+  .chart-box { position: relative; height: 260px; }
+  .chart-box.sm { height: 180px; }
+  .chart-title { font-weight: 600; font-size: .95rem; margin-bottom: .25rem; }
+  .chart-sub { color: var(--ink-3); font-size: .82rem; margin-bottom: .6rem; }
+  .tl { position: relative; padding-left: 1.6rem; }
+  .tl::before { content: ""; position: absolute; left: .45rem; top: .3rem; bottom: .3rem; width: 2px; background: var(--grid); }
+  .tl-item { position: relative; padding: .55rem 0 .9rem; }
+  .tl-item::before { content: ""; position: absolute; left: -1.43rem; top: .9rem; width: .85rem; height: .85rem; border-radius: 50%; background: #fff; border: 3px solid var(--ink-3); }
+  .tl-item.s-warn::before { border-color: var(--serious); }
+  .tl-item.s-crit::before { border-color: var(--critical); background: var(--critical); }
+  .tl-item.s-good::before { border-color: var(--good); background: var(--good); }
+  .tl-time { font-weight: 800; font-variant-numeric: tabular-nums; display: block; color: var(--ink); font-size: .95rem; }
+  .tl-user { color: var(--ink-2); font-size: .9rem; }
+  .tl-ev { color: var(--ink-3); font-size: .8rem; }
+  .quote { border-left: 4px solid var(--accent); padding: .6rem 1.1rem; background: var(--brand-soft); border-radius: 0 .6rem .6rem 0; font-size: 1.2rem; }
+  .det-row { display: grid; grid-template-columns: 9.5rem 1fr 7rem; gap: .8rem; align-items: center; padding: .55rem 0; border-bottom: 1px dashed var(--grid); }
+  .det-bar { height: .7rem; border-radius: 99px; background: var(--series-1); }
+  .det-bar.real { background: var(--critical); }
+  .table thead th { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-2); }
+  .num { font-variant-numeric: tabular-nums; text-align: right; }
+  .keyhint { position: fixed; right: 1rem; bottom: 1rem; font-size: .75rem; color: var(--ink-3); background: #fff; border: 1px solid var(--grid); border-radius: .6rem; padding: .35rem .6rem; z-index: 10; }
+  kbd { background: var(--surface-2); color: var(--ink); border: 1px solid var(--grid); font-size: .72rem; }
+  #progreso { position: fixed; top: 0; left: 0; height: 3px; background: var(--accent); z-index: 2000; width: 0; transition: width .2s; }
+  @media (max-width: 768px) { section.slide { padding-top: 5rem; } .kpi .v { font-size: 2rem; } .det-row { grid-template-columns: 1fr; } .keyhint { display: none; } }
+  @media print { .navbar, .keyhint, #progreso { display: none !important; } section.slide { min-height: auto; page-break-after: always; padding-top: 1.5rem; } }
+</style>
+</head>
+<body data-bs-spy="scroll" data-bs-target="#nav" data-bs-offset="90" tabindex="0">
+<div id="progreso"></div>
+<div id="aviso-plantilla" class="alert alert-warning m-0 rounded-0 text-center fixed-bottom">
+  Estás viendo la <strong>plantilla</strong>, sin datos. Ejecuta <code>python generar_presentacion.py --kit ../kit --salida resultados</code>
+  y abre <strong>resultados/presentacion.html</strong>.
+</div>
+
+<nav class="navbar navbar-expand-lg fixed-top">
+  <div class="container-xl">
+    <a class="navbar-brand fw-bold" href="#inicio"><i class="bi bi-activity text-primary"></i> PortalPagos · Diagnóstico</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav"><span class="navbar-toggler-icon"></span></button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav ms-auto gap-1">
+        <li class="nav-item"><a class="nav-link" href="#inicio">Resumen</a></li>
+        <li class="nav-item"><a class="nav-link" href="#tiempo">Línea de tiempo</a></li>
+        <li class="nav-item"><a class="nav-link" href="#causa">Causa raíz</a></li>
+        <li class="nav-item"><a class="nav-link" href="#noc">Por qué no se vio</a></li>
+        <li class="nav-item"><a class="nav-link" href="#deteccion">Detección</a></li>
+        <li class="nav-item"><a class="nav-link" href="#riesgos">Riesgos</a></li>
+        <li class="nav-item"><a class="nav-link" href="#acciones">Acciones</a></li>
+        <li class="nav-item"><a class="nav-link" href="#metodo">Método</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<main class="container-xl">
+
+<!-- 1. RESUMEN -->
+<section class="slide" id="inicio">
+  <div class="eyebrow mb-2">Post-mortem · Viernes 18 de septiembre de 2026 · Fabián Pinzón</div>
+  <h1 class="display-5 mb-3">El portal no se cayó de golpe:<br>venía enfermo desde el martes.</h1>
+  <p class="lead-muted mb-4">Una actualización trajo una fuga de memoria. El reinicio de IIS de cada madrugada la escondió dos días y el viernes, con el pico del cierre de pagos, tumbó el portal. El monitoreo no lo vio porque mide si el servidor responde, no si los clientes pueden pagar.</p>
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3"><div class="kpi crit"><div class="v">26 min</div><div class="l">de caída total<br>(14:38 – 15:04)</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi crit"><div class="v">1.985</div><div class="l">operaciones fallidas el viernes<br>(250 confirmaciones de pago)</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi warn"><div class="v">94,5 %</div><div class="l">disponibilidad real del viernes<br><strong>el NOC reportó 100 %</strong></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi info"><div class="v">~2 días</div><div class="l">de aviso que los datos<br>ya mostraban</div></div></div>
+  </div>
+  <div class="quote"><i class="bi bi-exclamation-triangle-fill text-danger"></i> <strong>Hoy sigue el riesgo:</strong> la fuga está en producción y el disco del servidor se llena alrededor del <strong>martes 22</strong>.</div>
+</section>
+
+<!-- 2. LINEA DE TIEMPO -->
+<section class="slide" id="tiempo">
+  <div class="eyebrow mb-2">Qué pasó, hora a hora (hora Colombia)</div>
+  <h2>De la lentitud a la caída: 3 h 44 min</h2>
+  <p class="lead-muted mb-4">Cada momento con lo que vio el cliente y la evidencia que lo respalda.</p>
+  <div class="row g-4">
+    <div class="col-lg-5">
+      <div class="tl">
+        <div class="tl-item"><span class="tl-time">Mar 15 · 22:03</span> Se instala la v2.3.1 (caché de pagos nuevo, logs en Debug)<div class="tl-ev">Evento AndinaDeploy 1000</div></div>
+        <div class="tl-item s-warn"><span class="tl-time">Mié 16 – Jue 17</span> La memoria sube a 1,1–1,2 GB; el reinicio de 02:00 la esconde<div class="tl-user">Cliente: lentitud en la tarde (T-10240, cerrado "monitoreo en verde")</div></div>
+        <div class="tl-item s-warn"><span class="tl-time">Vie 18 · 11:20</span> Empieza la degradación: p95 pasa de 0,5 s a 1–3 s<div class="tl-user">Cliente: lentitud</div><div class="tl-ev">Logs IIS</div></div>
+        <div class="tl-item s-crit"><span class="tl-time">13:23</span> Primer error al confirmar un pago (OutOfMemory)<div class="tl-user">Cliente: "Ha ocurrido un error inesperado" (T-10252, 13:34)</div><div class="tl-ev">IIS + ASP.NET 1309</div></div>
+        <div class="tl-item s-crit"><span class="tl-time">14:22 – 14:38</span> El proceso del portal se cae 5 veces<div class="tl-ev">.NET 1026 · WAS 5011</div></div>
+        <div class="tl-item s-crit"><span class="tl-time">14:38</span> IIS apaga el pool por fallas repetidas<div class="tl-user">Cliente: "Service Unavailable" (T-10255)</div><div class="tl-ev">WAS 5002 · HTTP.sys</div></div>
+        <div class="tl-item s-good"><span class="tl-time">15:04</span> Reinicio manual del pool: servicio normal<div class="tl-ev">Último 503 a las 15:03:59</div></div>
+      </div>
+    </div>
+    <div class="col-lg-7">
+      <div class="card-soft">
+        <div class="chart-title">Tiempo de respuesta p95 (segundos)</div>
+        <div class="chart-sub">Cada 10 minutos, 18 de septiembre. Sin dato = portal apagado.</div>
+        <div class="chart-box"><canvas id="cP95" aria-label="p95 por 10 minutos"></canvas></div>
+        <div class="chart-title mt-3">Errores cada 10 minutos (5xx + 503)</div>
+        <div class="chart-sub">Incluye los 503 que solo registró HTTP.sys con el pool apagado.</div>
+        <div class="chart-box sm"><canvas id="cErr" aria-label="errores por 10 minutos"></canvas></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3. CAUSA RAIZ -->
+<section class="slide" id="causa">
+  <div class="eyebrow mb-2">Causa raíz</div>
+  <h2>Una fuga de memoria que crece con cada pago</h2>
+  <p class="lead-muted mb-4">Antes de la actualización la memoria era plana. Después sube todo el día y cae a las 02:00 por el reinicio nocturno: ese "serrucho" es la fuga.</p>
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <div class="card-soft">
+        <div class="chart-title">Memoria del proceso del portal (MB, máximo cada 30 min)</div>
+        <div class="chart-sub">La línea punteada marca el despliegue v2.3.1 (martes 15, 22:03).</div>
+        <div class="chart-box" style="height:400px"><canvas id="cMem" aria-label="memoria del proceso w3wp"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-4 d-flex flex-column gap-3">
+      <div class="card-soft">
+        <span class="pill hecho"><i class="bi bi-check-circle-fill"></i> Hecho</span>
+        <p class="mt-2 mb-0">Los errores son <code>OutOfMemoryException</code> en <code>SesionPagoCache.Agregar</code>, que llegó con la v2.3.1.</p>
+      </div>
+      <div class="card-soft">
+        <span class="pill hecho"><i class="bi bi-check-circle-fill"></i> Hecho</span>
+        <p class="mt-2 mb-0">Correlación <strong>0,993</strong> entre operaciones de pago y crecimiento de memoria por hora. ~0,25 MB por operación. Cae tras ~4.200 operaciones.</p>
+      </div>
+      <div class="card-soft">
+        <span class="pill hip"><i class="bi bi-question-circle-fill"></i> Hipótesis</span>
+        <p class="mt-2 mb-0">El caché no expulsa sesiones, y el pool corre en 32 bits (cae a ~1,4 GB con 4,7 GB libres). Se confirma con <code>enable32BitAppOnWindows</code>.</p>
+      </div>
+    </div>
+  </div>
+  <p class="mt-3 text-secondary small mb-1"><i class="bi bi-x-circle"></i> Descartado: DCOM 10016 (ticket T-10261), aparece igual toda la semana. También el retiro de D: y el proxy: la memoria ya subía desde las 07:00 del 16, antes de ambos.</p>
+  <p class="text-secondary small"><i class="bi bi-search"></i> Siguiente paso para confirmar: analizar los 5 volcados de memoria (<code>C:\CrashDumps</code>) y no borrarlos al liberar disco.</p>
+</section>
+
+<!-- 4. POR QUE NO SE VIO -->
+<section class="slide" id="noc">
+  <div class="eyebrow mb-2">Por qué nos enteramos por los clientes</div>
+  <h2>El monitoreo decía 100 %. La realidad fue 94,5 %.</h2>
+  <p class="lead-muted mb-4">El NOC vigila con ping y <code>/health</code>. Ese endpoint responde en 2 ms aunque pagar tarde 25 s, y sus 52 fallos durante la caída quedaron en un log que nadie revisa (HTTP.sys).</p>
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="card-soft">
+        <div class="chart-title">Disponibilidad real por día (peticiones de clientes)</div>
+        <div class="chart-sub">Sin <code>/health</code> ni escaneos. Fallo = 5xx en IIS o 503 en HTTP.sys.</div>
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Día</th><th class="num">Peticiones</th><th class="num">Fallidas</th><th class="num">Disponibilidad</th></tr></thead>
+          <tbody id="tDisp"></tbody>
+        </table>
+        <p class="small text-secondary mt-2 mb-0">Semana: <strong>98,6 %</strong>. El NOC reportó 100 %.</p>
+      </div>
+    </div>
+    <div class="col-lg-6 d-flex flex-column gap-3">
+      <div class="card-soft d-flex gap-3 align-items-start py-3"><i class="bi bi-1-circle-fill text-primary fs-4 lh-1"></i><p class="mb-0"><strong>El reinicio nocturno escondió la falla</strong> durante dos días.</p></div>
+      <div class="card-soft d-flex gap-3 align-items-start py-3"><i class="bi bi-2-circle-fill text-primary fs-4 lh-1"></i><p class="mb-0"><strong>El health check no prueba la aplicación</strong> y nadie mira el log de HTTP.sys.</p></div>
+      <div class="card-soft d-flex gap-3 align-items-start py-3"><i class="bi bi-3-circle-fill text-primary fs-4 lh-1"></i><p class="mb-0"><strong>Una señal temprana se descartó:</strong> el ticket del jueves por lentitud se cerró por "monitoreo en verde".</p></div>
+      <div class="card-soft d-flex gap-3 align-items-start py-3"><i class="bi bi-4-circle-fill text-primary fs-4 lh-1"></i><p class="mb-0"><strong>Cambios sin seguimiento:</strong> sin revisión post-despliegue, y un aparente proxy nuevo desde el 16 sin evento ni ticket.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 5. DETECCION -->
+<section class="slide" id="deteccion">
+  <div class="eyebrow mb-2">Señales tempranas · detección simulada sobre los mismos datos</div>
+  <h2>Con alertas correctas, se habría sabido casi 2 días antes</h2>
+  <p class="lead-muted mb-4">Probé reglas de alerta contra la semana completa; la hora es cuando la alerta se dispararía. La de latencia no da falsas alarmas de lunes a jueves.</p>
+  <div class="card-soft mb-4">
+    <div class="det-row fw-semibold small text-secondary"><div>Habría avisado</div><div>Regla</div><div class="text-end">Antes del ticket</div></div>
+    <div class="det-row"><div><strong>Mié 16 · 18:40</strong></div><div>Memoria del portal &gt; 1 GB</div><div class="text-end">~43 h</div></div>
+    <div class="det-row"><div><strong>Jue 17 · 14:40</strong></div><div>Disco C: &lt; 30 % libre</div><div class="text-end">~23 h</div></div>
+    <div class="det-row"><div><strong>Vie 18 · 12:00</strong></div><div>Tiempo de respuesta &gt; 2× lo normal por 15 min</div><div class="text-end">1 h 34 min</div></div>
+    <div class="det-row"><div><strong>Vie 18 · 13:25</strong></div><div>Errores &gt; 5 % en 5 min</div><div class="text-end">9 min</div></div>
+    <div class="det-row"><div class="text-danger"><strong>Vie 18 · 13:34</strong></div><div class="text-danger"><i class="bi bi-person-fill"></i> Primer ticket de un cliente (lo que pasó)</div><div class="text-end">—</div></div>
+  </div>
+  <div class="row g-4">
+    <div class="col-md-6"><div class="card-soft">
+      <div class="chart-title">p95 diario (ms)</div><div class="chart-sub">La latencia venía subiendo desde el miércoles.</div>
+      <div class="chart-box sm"><canvas id="cDiaP95"></canvas></div></div></div>
+    <div class="col-md-6"><div class="card-soft">
+      <div class="chart-title">Memoria pico diaria (MB)</div><div class="chart-sub">Se triplicó desde el día siguiente al despliegue.</div>
+      <div class="chart-box sm"><canvas id="cDiaMem"></canvas></div></div></div>
+  </div>
+</section>
+
+<!-- 6. RIESGOS -->
+<section class="slide" id="riesgos">
+  <div class="eyebrow mb-2">Otros riesgos encontrados en los datos</div>
+  <h2>Lo urgente no terminó el viernes</h2>
+  <div class="row g-4 mt-1">
+    <div class="col-lg-7">
+      <div class="card-soft">
+        <div class="chart-title">Disco C: libre (GB)</div>
+        <div class="chart-sub">~240 MB por cada 1.000 peticiones desde el despliegue. Pronóstico: lleno el martes 22.</div>
+        <div class="chart-box"><canvas id="cDisco"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card-soft">
+        <div class="chart-title">Confirmaciones por cada pago iniciado</div>
+        <div class="chart-sub">El viernes hubo más confirmaciones que inicios: ~630 reintentos.</div>
+        <div class="chart-box sm"><canvas id="cRatio"></canvas></div>
+      </div>
+    </div>
+  </div>
+  <div class="table-responsive mt-4">
+    <table class="table align-middle">
+      <thead><tr><th>Riesgo</th><th>Urgencia</th><th>Detalle</th></tr></thead>
+      <tbody>
+        <tr><td>Disco C: lleno</td><td><span class="pill crit"><i class="bi bi-exclamation-octagon-fill"></i> Crítica</span></td><td>10,9 GB libres; una nueva caída lo llena en horas (volcados de memoria).</td></tr>
+        <tr><td>Fuga en producción</td><td><span class="pill crit"><i class="bi bi-exclamation-octagon-fill"></i> Crítica</span></td><td>Aguanta ~4.200 operaciones de pago por día; por encima se cae.</td></tr>
+        <tr><td>Posibles cobros duplicados</td><td><span class="pill alta"><i class="bi bi-exclamation-triangle-fill"></i> Alta</span></td><td>Verificar idempotencia de <code>/api/pagos/confirmar</code> y cruzar con el sistema de pagos.</td></tr>
+        <tr><td>Logs de auditoría sin copiar desde el 16</td><td><span class="pill alta"><i class="bi bi-exclamation-triangle-fill"></i> Alta</span></td><td>El script apunta a D:, retirada ese día, y aun así dice "Proceso OK".</td></tr>
+        <tr><td>Contraseña en texto plano</td><td><span class="pill media"><i class="bi bi-info-circle-fill"></i> Media</span></td><td>Cuenta de servicio con clave de 2019 en el script de mantenimiento.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 7. ACCIONES -->
+<section class="slide" id="acciones">
+  <div class="eyebrow mb-2">Qué recomiendo</div>
+  <h2>Contener, corregir, detectar, prevenir</h2>
+  <div class="row g-3 mt-2">
+    <div class="col-md-6 col-lg-3"><div class="card-soft"><div class="pill crit mb-2">Contener · ya</div><ul class="mb-0 ps-3"><li>Preservar los volcados de memoria (evidencia)</li><li>Liberar disco y bajar logs a Information</li><li>Reciclar el pool por umbral de memoria (red temporal)</li></ul></div></div>
+    <div class="col-md-6 col-lg-3"><div class="card-soft"><div class="pill alta mb-2">Corregir · antes del próximo cierre</div><ul class="mb-0 ps-3"><li>Volver a v2.3.0 o poner límite y expiración al caché</li><li>Revisar posibles cobros duplicados</li></ul></div></div>
+    <div class="col-md-6 col-lg-3"><div class="card-soft"><div class="pill media mb-2">Detectar · 2 semanas</div><ul class="mb-0 ps-3"><li>Health check que pruebe una transacción real</li><li>Monitoreo sintético externo</li><li>Alertas de errores, p95, memoria y disco</li></ul></div></div>
+    <div class="col-md-6 col-lg-3"><div class="card-soft"><div class="pill hecho mb-2">Prevenir · 1 mes</div><ul class="mb-0 ps-3"><li>Revisión obligatoria 24 h post-despliegue</li><li>Registro de todo cambio</li><li>Reemplazar el script de mantenimiento y rotar la clave</li></ul></div></div>
+  </div>
+</section>
+
+<!-- 8. METODO -->
+<section class="slide" id="metodo">
+  <div class="eyebrow mb-2">Cómo llegué a esto</div>
+  <h2>No les creí a ciegas a los datos</h2>
+  <p class="lead-muted mb-4">Todo se reproduce con <code>python analizar.py --kit ../kit</code>. Estas son las trampas que encontré en el kit:</p>
+  <div class="row g-3">
+    <div class="col-md-6 col-lg-4"><div class="card-soft"><i class="bi bi-files fs-4 text-primary"></i><h6 class="mt-2">Archivo duplicado</h6><p class="mb-0 small">"u_ex260916 - copia.log" detectado por hash MD5, no por nombre.</p></div></div>
+    <div class="col-md-6 col-lg-4"><div class="card-soft"><i class="bi bi-clock-history fs-4 text-primary"></i><h6 class="mt-2">Zonas horarias mezcladas</h6><p class="mb-0 small">IIS y HTTP.sys en UTC; eventos y Perfmon en hora local. Todo convertido a UTC-5.</p></div></div>
+    <div class="col-md-6 col-lg-4"><div class="card-soft"><i class="bi bi-layout-three-columns fs-4 text-primary"></i><h6 class="mt-2">Columnas que cambian</h6><p class="mb-0 small">#Fields cambia a mitad del archivo del 17: apareció un proxy sin documentar.</p></div></div>
+    <div class="col-md-6 col-lg-4"><div class="card-soft"><i class="bi bi-eye-slash fs-4 text-primary"></i><h6 class="mt-2">Errores invisibles</h6><p class="mb-0 small">Los 1.489 rechazos 503 solo están en HTTP.sys, no en el log de IIS.</p></div></div>
+    <div class="col-md-6 col-lg-4"><div class="card-soft"><i class="bi bi-signpost-split fs-4 text-primary"></i><h6 class="mt-2">Pista falsa</h6><p class="mb-0 small">DCOM 10016: constante toda la semana, sin relación con la caída.</p></div></div>
+    <div class="col-md-6 col-lg-4"><div class="card-soft"><i class="bi bi-robot fs-4 text-primary"></i><h6 class="mt-2">IA con criterio</h6><p class="mb-0 small">Corregí dos conclusiones de la IA (duplicado y "abandono"). Ver IA_BITACORA.md.</p></div></div>
+  </div>
+</section>
+</main>
+
+<div class="keyhint"><kbd>←</kbd> <kbd>→</kbd> secciones · <kbd>F</kbd> pantalla completa</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.js"></script>
+<script>
+const D = {"disp18": 94.476, "dispSem": 98.567, "fallidas18": 1985, "f5xx": 496, "f503": 1489, "healthFallos": 52, "corr": 0.993, "inc": {"x": ["08:00", "08:10", "08:20", "08:30", "08:40", "08:50", "09:00", "09:10", "09:20", "09:30", "09:40", "09:50", "10:00", "10:10", "10:20", "10:30", "10:40", "10:50", "11:00", "11:10", "11:20", "11:30", "11:40", "11:50", "12:00", "12:10", "12:20", "12:30", "12:40", "12:50", "13:00", "13:10", "13:20", "13:30", "13:40", "13:50", "14:00", "14:10", "14:20", "14:30", "14:40", "14:50", "15:00", "15:10", "15:20", "15:30", "15:40", "15:50", "16:00", "16:10", "16:20", "16:30", "16:40", "16:50"], "p95": [0.59, 0.49, 0.53, 0.47, 0.5, 0.7, 0.56, 0.57, 0.6, 0.55, 0.58, 0.57, 0.61, 0.48, 0.54, 0.58, 0.52, 0.59, 0.56, 0.64, 0.76, 1.14, 1.11, 1.37, 1.77, 1.66, 2.31, 2.27, 3.2, 2.42, 2.64, 3.18, 23.44, 24.62, 25.75, 22.89, 23.56, 25.43, 22.87, 21.55, null, null, 0.57, 0.5, 0.53, 0.54, 0.6, 0.46, 0.54, 0.53, 0.61, 0.58, 0.54, 0.51], "err": [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 2, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 40, 60, 60, 56, 67, 78, 62, 145, 621, 568, 250, 1, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0]}, "mem": {"x": ["lun 14 00:00", "lun 14 00:30", "lun 14 01:00", "lun 14 01:30", "lun 14 02:00", "lun 14 02:30", "lun 14 03:00", "lun 14 03:30", "lun 14 04:00", "lun 14 04:30", "lun 14 05:00", "lun 14 05:30", "lun 14 06:00", "lun 14 06:30", "lun 14 07:00", "lun 14 07:30", "lun 14 08:00", "lun 14 08:30", "lun 14 09:00", "lun 14 09:30", "lun 14 10:00", "lun 14 10:30", "lun 14 11:00", "lun 14 11:30", "lun 14 12:00", "lun 14 12:30", "lun 14 13:00", "lun 14 13:30", "lun 14 14:00", "lun 14 14:30", "lun 14 15:00", "lun 14 15:30", "lun 14 16:00", "lun 14 16:30", "lun 14 17:00", "lun 14 17:30", "lun 14 18:00", "lun 14 18:30", "lun 14 19:00", "lun 14 19:30", "lun 14 20:00", "lun 14 20:30", "lun 14 21:00", "lun 14 21:30", "lun 14 22:00", "lun 14 22:30", "lun 14 23:00", "lun 14 23:30", "mar 15 00:00", "mar 15 00:30", "mar 15 01:00", "mar 15 01:30", "mar 15 02:00", "mar 15 02:30", "mar 15 03:00", "mar 15 03:30", "mar 15 04:00", "mar 15 04:30", "mar 15 05:00", "mar 15 05:30", "mar 15 06:00", "mar 15 06:30", "mar 15 07:00", "mar 15 07:30", "mar 15 08:00", "mar 15 08:30", "mar 15 09:00", "mar 15 09:30", "mar 15 10:00", "mar 15 10:30", "mar 15 11:00", "mar 15 11:30", "mar 15 12:00", "mar 15 12:30", "mar 15 13:00", "mar 15 13:30", "mar 15 14:00", "mar 15 14:30", "mar 15 15:00", "mar 15 15:30", "mar 15 16:00", "mar 15 16:30", "mar 15 17:00", "mar 15 17:30", "mar 15 18:00", "mar 15 18:30", "mar 15 19:00", "mar 15 19:30", "mar 15 20:00", "mar 15 20:30", "mar 15 21:00", "mar 15 21:30", "mar 15 22:00", "mar 15 22:30", "mar 15 23:00", "mar 15 23:30", "mié 16 00:00", "mié 16 00:30", "mié 16 01:00", "mié 16 01:30", "mié 16 02:00", "mié 16 02:30", "mié 16 03:00", "mié 16 03:30", "mié 16 04:00", "mié 16 04:30", "mié 16 05:00", "mié 16 05:30", "mié 16 06:00", "mié 16 06:30", "mié 16 07:00", "mié 16 07:30", "mié 16 08:00", "mié 16 08:30", "mié 16 09:00", "mié 16 09:30", "mié 16 10:00", "mié 16 10:30", "mié 16 11:00", "mié 16 11:30", "mié 16 12:00", "mié 16 12:30", "mié 16 13:00", "mié 16 13:30", "mié 16 14:00", "mié 16 14:30", "mié 16 15:00", "mié 16 15:30", "mié 16 16:00", "mié 16 16:30", "mié 16 17:00", "mié 16 17:30", "mié 16 18:00", "mié 16 18:30", "mié 16 19:00", "mié 16 19:30", "mié 16 20:00", "mié 16 20:30", "mié 16 21:00", "mié 16 21:30", "mié 16 22:00", "mié 16 22:30", "mié 16 23:00", "mié 16 23:30", "jue 17 00:00", "jue 17 00:30", "jue 17 01:00", "jue 17 01:30", "jue 17 02:00", "jue 17 02:30", "jue 17 03:00", "jue 17 03:30", "jue 17 04:00", "jue 17 04:30", "jue 17 05:00", "jue 17 05:30", "jue 17 06:00", "jue 17 06:30", "jue 17 07:00", "jue 17 07:30", "jue 17 08:00", "jue 17 08:30", "jue 17 09:00", "jue 17 09:30", "jue 17 10:00", "jue 17 10:30", "jue 17 11:00", "jue 17 11:30", "jue 17 12:00", "jue 17 12:30", "jue 17 13:00", "jue 17 13:30", "jue 17 14:00", "jue 17 14:30", "jue 17 15:00", "jue 17 15:30", "jue 17 16:00", "jue 17 16:30", "jue 17 17:00", "jue 17 17:30", "jue 17 18:00", "jue 17 18:30", "jue 17 19:00", "jue 17 19:30", "jue 17 20:00", "jue 17 20:30", "jue 17 21:00", "jue 17 21:30", "jue 17 22:00", "jue 17 22:30", "jue 17 23:00", "jue 17 23:30", "vie 18 00:00", "vie 18 00:30", "vie 18 01:00", "vie 18 01:30", "vie 18 02:00", "vie 18 02:30", "vie 18 03:00", "vie 18 03:30", "vie 18 04:00", "vie 18 04:30", "vie 18 05:00", "vie 18 05:30", "vie 18 06:00", "vie 18 06:30", "vie 18 07:00", "vie 18 07:30", "vie 18 08:00", "vie 18 08:30", "vie 18 09:00", "vie 18 09:30", "vie 18 10:00", "vie 18 10:30", "vie 18 11:00", "vie 18 11:30", "vie 18 12:00", "vie 18 12:30", "vie 18 13:00", "vie 18 13:30", "vie 18 14:00", "vie 18 14:30", "vie 18 15:00", "vie 18 15:30", "vie 18 16:00", "vie 18 16:30", "vie 18 17:00", "vie 18 17:30", "vie 18 18:00", "vie 18 18:30", "vie 18 19:00", "vie 18 19:30", "vie 18 20:00", "vie 18 20:30", "vie 18 21:00", "vie 18 21:30", "vie 18 22:00", "vie 18 22:30", "vie 18 23:00", "vie 18 23:30", "sáb 19 00:00", "sáb 19 00:30", "sáb 19 01:00", "sáb 19 01:30", "sáb 19 02:00", "sáb 19 02:30", "sáb 19 03:00", "sáb 19 03:30", "sáb 19 04:00", "sáb 19 04:30", "sáb 19 05:00", "sáb 19 05:30", "sáb 19 06:00", "sáb 19 06:30", "sáb 19 07:00", "sáb 19 07:30", "sáb 19 08:00", "sáb 19 08:30", "sáb 19 09:00", "sáb 19 09:30", "sáb 19 10:00", "sáb 19 10:30", "sáb 19 11:00", "sáb 19 11:30", "sáb 19 12:00", "sáb 19 12:30", "sáb 19 13:00", "sáb 19 13:30", "sáb 19 14:00", "sáb 19 14:30", "sáb 19 15:00", "sáb 19 15:30", "sáb 19 16:00", "sáb 19 16:30", "sáb 19 17:00", "sáb 19 17:30", "sáb 19 18:00", "sáb 19 18:30", "sáb 19 19:00", "sáb 19 19:30", "sáb 19 20:00", "sáb 19 20:30", "sáb 19 21:00", "sáb 19 21:30", "sáb 19 22:00", "sáb 19 22:30", "sáb 19 23:00", "sáb 19 23:30", "dom 20 00:00", "dom 20 00:30", "dom 20 01:00", "dom 20 01:30", "dom 20 02:00", "dom 20 02:30", "dom 20 03:00", "dom 20 03:30", "dom 20 04:00", "dom 20 04:30", "dom 20 05:00", "dom 20 05:30", "dom 20 06:00", "dom 20 06:30", "dom 20 07:00", "dom 20 07:30", "dom 20 08:00", "dom 20 08:30", "dom 20 09:00", "dom 20 09:30", "dom 20 10:00", "dom 20 10:30", "dom 20 11:00", "dom 20 11:30", "dom 20 12:00", "dom 20 12:30", "dom 20 13:00", "dom 20 13:30", "dom 20 14:00", "dom 20 14:30", "dom 20 15:00", "dom 20 15:30", "dom 20 16:00", "dom 20 16:30", "dom 20 17:00", "dom 20 17:30", "dom 20 18:00", "dom 20 18:30", "dom 20 19:00", "dom 20 19:30", "dom 20 20:00", "dom 20 20:30", "dom 20 21:00", "dom 20 21:30", "dom 20 22:00", "dom 20 22:30", "dom 20 23:00", "dom 20 23:30"], "y": [313, 314, 315, 310, 312, 314, 312, 312, 313, 316, 316, 313, 308, 307, 308, 309, 308, 310, 312, 314, 312, 314, 314, 309, 312, 310, 309, 308, 308, 308, 311, 310, 310, 312, 311, 314, 312, 315, 317, 315, 316, 314, 311, 316, 314, 315, 317, 317, 316, 319, 319, 320, 303, 303, 301, 300, 302, 303, 303, 302, 303, 302, 298, 300, 299, 297, 297, 298, 297, 290, 290, 296, 294, 296, 299, 292, 294, 292, 291, 291, 287, 285, 284, 284, 285, 286, 286, 289, 285, 287, 287, 287, 286, 287, 290, 295, 301, 302, 304, 307, 315, 316, 319, 325, 328, 326, 327, 325, 331, 332, 341, 350, 371, 398, 426, 456, 507, 551, 599, 627, 660, 681, 706, 726, 756, 795, 842, 877, 921, 954, 967, 984, 994, 1003, 1025, 1038, 1052, 1065, 1075, 1081, 1086, 1084, 1084, 1091, 1092, 1090, 1101, 1099, 300, 301, 307, 310, 315, 320, 325, 328, 336, 347, 354, 364, 381, 407, 439, 485, 532, 575, 637, 669, 707, 738, 759, 794, 831, 867, 921, 952, 1000, 1032, 1064, 1086, 1101, 1111, 1125, 1140, 1149, 1163, 1168, 1173, 1177, 1182, 1184, 1186, 1190, 1199, 1207, 1216, 307, 316, 323, 330, 339, 347, 358, 360, 379, 382, 394, 419, 466, 524, 607, 712, 841, 960, 1073, 1182, 1250, 1310, 1360, 1415, 1478, 1321, 368, 478, 569, 640, 704, 741, 769, 793, 826, 862, 888, 924, 945, 958, 968, 975, 979, 988, 993, 993, 994, 995, 300, 301, 304, 301, 303, 303, 305, 307, 307, 305, 306, 306, 314, 326, 339, 358, 383, 408, 425, 446, 455, 465, 477, 491, 504, 524, 544, 562, 566, 583, 590, 601, 611, 617, 619, 620, 624, 630, 635, 636, 643, 641, 639, 643, 641, 644, 643, 644, 298, 296, 296, 293, 294, 291, 296, 299, 298, 300, 306, 309, 312, 319, 330, 344, 350, 364, 370, 379, 390, 399, 401, 408, 416, 424, 432, 437, 449, 458, 464, 465, 472, 474, 474, 475, 481, 482, 486, 486, 489, 487, 491, 493]}, "disco": {"x": ["lun 14 00:00", "lun 14 01:00", "lun 14 02:00", "lun 14 03:00", "lun 14 04:00", "lun 14 05:00", "lun 14 06:00", "lun 14 07:00", "lun 14 08:00", "lun 14 09:00", "lun 14 10:00", "lun 14 11:00", "lun 14 12:00", "lun 14 13:00", "lun 14 14:00", "lun 14 15:00", "lun 14 16:00", "lun 14 17:00", "lun 14 18:00", "lun 14 19:00", "lun 14 20:00", "lun 14 21:00", "lun 14 22:00", "lun 14 23:00", "mar 15 00:00", "mar 15 01:00", "mar 15 02:00", "mar 15 03:00", "mar 15 04:00", "mar 15 05:00", "mar 15 06:00", "mar 15 07:00", "mar 15 08:00", "mar 15 09:00", "mar 15 10:00", "mar 15 11:00", "mar 15 12:00", "mar 15 13:00", "mar 15 14:00", "mar 15 15:00", "mar 15 16:00", "mar 15 17:00", "mar 15 18:00", "mar 15 19:00", "mar 15 20:00", "mar 15 21:00", "mar 15 22:00", "mar 15 23:00", "mié 16 00:00", "mié 16 01:00", "mié 16 02:00", "mié 16 03:00", "mié 16 04:00", "mié 16 05:00", "mié 16 06:00", "mié 16 07:00", "mié 16 08:00", "mié 16 09:00", "mié 16 10:00", "mié 16 11:00", "mié 16 12:00", "mié 16 13:00", "mié 16 14:00", "mié 16 15:00", "mié 16 16:00", "mié 16 17:00", "mié 16 18:00", "mié 16 19:00", "mié 16 20:00", "mié 16 21:00", "mié 16 22:00", "mié 16 23:00", "jue 17 00:00", "jue 17 01:00", "jue 17 02:00", "jue 17 03:00", "jue 17 04:00", "jue 17 05:00", "jue 17 06:00", "jue 17 07:00", "jue 17 08:00", "jue 17 09:00", "jue 17 10:00", "jue 17 11:00", "jue 17 12:00", "jue 17 13:00", "jue 17 14:00", "jue 17 15:00", "jue 17 16:00", "jue 17 17:00", "jue 17 18:00", "jue 17 19:00", "jue 17 20:00", "jue 17 21:00", "jue 17 22:00", "jue 17 23:00", "vie 18 00:00", "vie 18 01:00", "vie 18 02:00", "vie 18 03:00", "vie 18 04:00", "vie 18 05:00", "vie 18 06:00", "vie 18 07:00", "vie 18 08:00", "vie 18 09:00", "vie 18 10:00", "vie 18 11:00", "vie 18 12:00", "vie 18 13:00", "vie 18 14:00", "vie 18 15:00", "vie 18 16:00", "vie 18 17:00", "vie 18 18:00", "vie 18 19:00", "vie 18 20:00", "vie 18 21:00", "vie 18 22:00", "vie 18 23:00", "sáb 19 00:00", "sáb 19 01:00", "sáb 19 02:00", "sáb 19 03:00", "sáb 19 04:00", "sáb 19 05:00", "sáb 19 06:00", "sáb 19 07:00", "sáb 19 08:00", "sáb 19 09:00", "sáb 19 10:00", "sáb 19 11:00", "sáb 19 12:00", "sáb 19 13:00", "sáb 19 14:00", "sáb 19 15:00", "sáb 19 16:00", "sáb 19 17:00", "sáb 19 18:00", "sáb 19 19:00", "sáb 19 20:00", "sáb 19 21:00", "sáb 19 22:00", "sáb 19 23:00", "dom 20 00:00", "dom 20 01:00", "dom 20 02:00", "dom 20 03:00", "dom 20 04:00", "dom 20 05:00", "dom 20 06:00", "dom 20 07:00", "dom 20 08:00", "dom 20 09:00", "dom 20 10:00", "dom 20 11:00", "dom 20 12:00", "dom 20 13:00", "dom 20 14:00", "dom 20 15:00", "dom 20 16:00", "dom 20 17:00", "dom 20 18:00", "dom 20 19:00", "dom 20 20:00", "dom 20 21:00", "dom 20 22:00", "dom 20 23:00"], "y": [48.29, 48.28, 48.3, 48.29, 48.28, 48.27, 48.25, 48.22, 48.15, 48.02, 47.87, 47.73, 47.65, 47.57, 47.46, 47.33, 47.21, 47.15, 47.11, 47.07, 47.03, 47.0, 46.99, 46.98, 46.96, 46.96, 48.53, 48.52, 48.51, 48.5, 48.48, 48.46, 48.39, 48.27, 48.13, 48.0, 47.92, 47.84, 47.74, 47.61, 47.51, 47.45, 47.42, 47.37, 47.33, 47.31, 47.25, 47.21, 47.16, 47.12, 47.07, 47.02, 46.97, 46.91, 46.83, 46.68, 46.34, 45.72, 44.97, 44.27, 43.81, 43.4, 42.86, 42.2, 41.67, 41.34, 41.16, 40.94, 40.73, 40.6, 40.54, 40.49, 40.43, 40.37, 40.31, 40.26, 40.2, 40.14, 40.05, 39.89, 39.52, 38.83, 38.0, 37.22, 36.68, 36.24, 35.63, 34.91, 34.3, 33.94, 33.75, 33.51, 33.28, 33.14, 33.07, 33.01, 32.92, 32.84, 32.75, 32.67, 32.59, 32.51, 32.4, 32.16, 31.61, 30.65, 29.47, 28.39, 27.67, 27.06, 19.42, 18.52, 17.69, 17.2, 16.89, 16.56, 16.2, 15.99, 15.88, 15.8, 15.77, 15.75, 15.73, 15.7, 15.69, 15.66, 15.63, 15.56, 15.41, 15.13, 14.79, 14.5, 14.31, 14.12, 13.87, 13.57, 13.33, 13.19, 13.1, 13.01, 12.92, 12.87, 12.84, 12.82, 12.81, 12.79, 12.78, 12.77, 12.76, 12.75, 12.72, 12.68, 12.58, 12.41, 12.2, 12.0, 11.87, 11.76, 11.61, 11.4, 11.25, 11.16, 11.1, 11.04, 10.98, 10.94, 10.92, 10.91]}, "dias": {"x": ["lun 14", "mar 15", "mié 16", "jue 17", "vie 18", "sáb 19", "dom 20"], "p95": [544.0, 549.0, 572.0, 686.0, 1912.0, 545.0, 510.0], "mem": [317.0, 320.0, 1091.0, 1186.0, 1478.0, 995.0, 644.0]}, "ratio": {"x": ["lun 14", "mar 15", "mié 16", "jue 17", "vie 18", "sáb 19", "dom 20"], "y": [0.84, 0.86, 0.81, 0.85, 1.01, 0.87, 0.74]}, "disp": [{"dia": "lun 14", "pet": 23014, "f": 30, "d": 99.87}, {"dia": "mar 15", "pet": 21588, "f": 21, "d": 99.903}, {"dia": "mié 16", "pet": 22897, "f": 16, "d": 99.93}, {"dia": "jue 17", "pet": 25477, "f": 26, "d": 99.898}, {"dia": "vie 18", "pet": 35933, "f": 1985, "d": 94.476}, {"dia": "sáb 19", "pet": 10152, "f": 5, "d": 99.951}, {"dia": "dom 20", "pet": 6511, "f": 3, "d": 99.954}]};
+if (!D) { document.getElementById('aviso-plantilla').style.display = 'block'; throw new Error('Plantilla sin datos'); }
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const C = { s1: css('--series-1'), crit: css('--critical'), grid: css('--grid'), ink2: css('--ink-2'), ink3: css('--ink-3'), neutral: css('--neutral-bar') };
+Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+Chart.defaults.color = C.ink2;
+Chart.defaults.plugins.legend.display = false;
+Chart.defaults.plugins.tooltip.backgroundColor = '#0b0b0b';
+Chart.defaults.plugins.tooltip.padding = 10;
+Chart.defaults.maintainAspectRatio = false;
+const ejes = (yTitle, extra={}, nx=10) => ({
+  x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: nx } },
+  y: { grid: { color: C.grid }, border: { display: false }, title: { display: !!yTitle, text: yTitle }, beginAtZero: true, ...extra }
+});
+const hover = { mode: 'index', intersect: false };
+
+// linea vertical de referencia (sin plugins externos)
+const marcaV = (idx, texto) => ({ id: 'marca' + idx, afterDatasetsDraw(ch) {
+  if (idx < 0) return; const x = ch.scales.x.getPixelForValue(idx); const { top, bottom } = ch.chartArea; const g = ch.ctx;
+  g.save(); g.setLineDash([5, 4]); g.strokeStyle = C.ink3; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, top); g.lineTo(x, bottom); g.stroke();
+  g.setLineDash([]); g.fillStyle = C.ink2; g.font = '12px ' + Chart.defaults.font.family; g.fillText(texto, x + 6, top + 12); g.restore(); } });
+
+// 1) incidente: dos graficas apiladas, mismo eje X (nunca doble eje Y)
+new Chart(cP95, { type: 'line', data: { labels: D.inc.x, datasets: [{ label: 'p95 (s)', data: D.inc.p95, borderColor: C.s1, borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, spanGaps: false, tension: .2 }] },
+  options: { interaction: hover, scales: ejes('segundos'), plugins: { tooltip: { callbacks: { label: c => c.raw == null ? 'Portal apagado' : `p95: ${c.raw} s` } } } },
+  plugins: [marcaV(D.inc.x.indexOf('14:30'), 'pool apagado 14:38')] });
+new Chart(cErr, { type: 'bar', data: { labels: D.inc.x, datasets: [{ label: 'Errores', data: D.inc.err, backgroundColor: C.crit, borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'bottom', barPercentage: .85, categoryPercentage: .9 }] },
+  options: { interaction: hover, scales: ejes('errores') } });
+
+// 2) memoria
+new Chart(cMem, { type: 'line', data: { labels: D.mem.x, datasets: [{ label: 'Memoria (MB)', data: D.mem.y, borderColor: C.s1, borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: 0 }] },
+  options: { interaction: hover, scales: ejes('MB', { beginAtZero: false }, 7), plugins: { tooltip: { callbacks: { label: c => c.raw == null ? 'Sin proceso (pool apagado)' : `${c.raw} MB` } } } },
+  plugins: [marcaV(D.mem.x.findIndex(t => t.includes('15 22')), 'despliegue v2.3.1')] });
+
+// 3) diarios
+const barrasDia = (el, y, label, unidad) => new Chart(el, { type: 'bar', data: { labels: D.dias.x, datasets: [{ label, data: y,
+  backgroundColor: D.dias.x.map(d => d.includes('18') ? C.crit : C.s1), borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'bottom' }] },
+  options: { scales: ejes(unidad), plugins: { tooltip: { callbacks: { label: c => `${c.raw.toLocaleString('es-CO')} ${unidad}` } } } } });
+barrasDia(cDiaP95, D.dias.p95, 'p95', 'ms');
+barrasDia(cDiaMem, D.dias.mem, 'Memoria pico', 'MB');
+
+// 4) disco
+new Chart(cDisco, { type: 'line', data: { labels: D.disco.x, datasets: [{ label: 'Disco libre (GB)', data: D.disco.y, borderColor: C.s1, borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: .1 }] },
+  options: { interaction: hover, scales: ejes('GB', {}, 7), plugins: { tooltip: { callbacks: { label: c => `${c.raw.toLocaleString('es-CO')} GB libres` } } } } });
+
+// 5) ratio confirmar / iniciar
+new Chart(cRatio, { type: 'bar', data: { labels: D.ratio.x, datasets: [{ label: 'Confirmaciones por inicio', data: D.ratio.y,
+  backgroundColor: D.ratio.x.map(d => d.includes('18') ? C.crit : C.neutral), borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'bottom' }] },
+  options: { scales: ejes('', { suggestedMax: 1.1 }), plugins: { tooltip: { callbacks: { label: c => `${c.raw.toFixed(2)} confirmaciones por pago iniciado` } } } } });
+
+// tabla de disponibilidad
+tDisp.innerHTML = D.disp.map(r => `<tr${r.d < 99 ? ' class="table-danger"' : ''}><td>${r.dia}</td><td class="num">${r.pet.toLocaleString('es-CO')}</td><td class="num">${r.f.toLocaleString('es-CO')}</td><td class="num fw-semibold">${r.d.toFixed(2).replace('.', ',')} %</td></tr>`).join('');
+
+// navegacion tipo presentacion
+const secciones = [...document.querySelectorAll('section.slide')];
+const actual = () => { const y = window.scrollY + 120; let i = 0; secciones.forEach((s, k) => { if (s.offsetTop <= y) i = k; }); return i; };
+document.addEventListener('keydown', e => {
+  if (['ArrowRight', 'PageDown'].includes(e.key)) { e.preventDefault(); secciones[Math.min(actual() + 1, secciones.length - 1)].scrollIntoView({ behavior: 'smooth' }); }
+  if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); secciones[Math.max(actual() - 1, 0)].scrollIntoView({ behavior: 'smooth' }); }
+  if (e.key.toLowerCase() === 'f') { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }
+});
+window.addEventListener('scroll', () => { progreso.style.width = (100 * window.scrollY / (document.body.scrollHeight - innerHeight)) + '%'; });
+</script>
+</body>
+</html>

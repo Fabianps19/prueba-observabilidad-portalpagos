@@ -29,6 +29,12 @@ _Se documentan a medida que se toman decisiones sin información completa._
 
 1. Los logs W3C de IIS están en UTC (comportamiento por defecto de IIS); eventos de Windows y contadores de Perfmon están en hora local de Bogotá (UTC-05:00). Todo el análisis se presenta en hora de Colombia.
 2. El archivo `u_ex260916 - copia.log` es un duplicado exacto (mismo hash) de `u_ex260916.log` y se excluye del análisis.
+3. **Disponibilidad** = peticiones de clientes sin error de servidor. Se excluyen `/health` (sonda del NOC) y los 404 (escaneos automáticos). Los 503 que solo registra HTTP.sys cuentan como fallo.
+4. Se considera mala experiencia una respuesta de más de **3 segundos** (umbral elegido para una operación de pago; es un parámetro del script).
+5. "Día normal" para comparar = promedio de lunes a jueves de la misma semana (antes del cierre de plazo).
+6. La IP 10.20.4.4 que aparece en `c-ip` desde el 16-sep 22:12 se interpreta como un proxy o balanceador; la IP real del cliente se toma de `X-Forwarded-For`.
+7. El consumo de disco posterior al despliegue se atribuye a los logs de aplicación en nivel Debug (el evento del despliegue lo menciona); no hay inventario de archivos del disco para confirmarlo.
+8. La caída de ~7,6 GB de disco entre 14:15 y 14:45 del 18-sep se atribuye a los volcados de memoria de las 5 caídas (eventos 1001 los referencian); no se tiene su tamaño exacto.
 
 ## Seguridad
 

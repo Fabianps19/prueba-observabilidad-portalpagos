@@ -1,91 +1,83 @@
-# Post-mortem · Caída de PortalPagos del viernes 18 de septiembre de 2026
+# Post-mortem: caída de PortalPagos, viernes 18 de septiembre de 2026
 
-**Formato sin culpables.** El objetivo es entender qué falló en el sistema y en los procesos, no señalar personas.
-**Horas:** todas en hora de Colombia.
+**Elaborado por:** Fabián Pinzón · **Enfoque:** sin culpables · **Horas:** Colombia (UTC-5)
+
+> **En una frase:** una actualización del martes 15 trajo una fuga de memoria; el reinicio nocturno de IIS la escondió dos días y el viernes, con el pico del cierre de pagos, tumbó el portal. El monitoreo no lo vio porque mide si el servidor responde, no si los clientes pueden pagar.
 
 ## 1. Resumen para la Dirección
 
-El viernes 18 de septiembre, último día de un plazo de pago, el portal se puso lento desde las **11:20**, empezó a fallar al confirmar pagos a las **13:23** y quedó **totalmente caído de 14:38 a 15:04** (26 minutos). Ese día fallaron unas **2.000 operaciones** de clientes, entre ellas **141 confirmaciones de pago**, y muchos clientes abandonaron por la lentitud.
+El viernes 18, último día de plazo de pago, el portal se puso lento desde las **11:20**, empezó a fallar al confirmar pagos a las **13:23** y estuvo **caído de 14:38 a 15:04** (26 min). Fallaron cerca de **2.000 operaciones**, entre ellas **250 confirmaciones y 254 inicios de pago**.
 
-**La causa:** una actualización del portal instalada el martes 15 en la noche trajo un componente que **acumula memoria y no la libera**. Cada madrugada, el mantenimiento automático reiniciaba el servidor y "borraba" el problema sin que nadie lo notara. El viernes, con 44 % más clientes que un día normal, la memoria se agotó antes de la noche.
+**Causa:** la versión 2.3.1 del portal trae un componente que acumula memoria y no la libera. El `iisreset` de cada madrugada lo ocultaba; el viernes llegó 1,5 veces el tráfico normal y la memoria se agotó a media tarde.
 
-**Por qué nos enteramos por los clientes:** el monitoreo del NOC solo pregunta "¿el servidor responde?", no "¿los pagos funcionan?". Por eso reportó 100 % de disponibilidad la misma semana en que los clientes no pudieron pagar.
+**Por qué nos enteramos por los clientes:** el NOC solo verifica que el servidor responda. En su revisión semanal reportó "/health OK 100 %, sin novedades" (T-10270).
 
-**Riesgo vigente:** el problema de memoria **sigue en producción** y el disco del servidor se está llenando; al ritmo actual se llena alrededor del **martes 22 de septiembre**.
+**Riesgo vigente:** la fuga sigue en producción y el disco del servidor se llena alrededor del **martes 22**.
 
 ## 2. Impacto
 
 | Indicador | Valor |
 |---|---|
-| Degradación (lentitud) | 11:20 – 15:04 (3 h 44 min) |
-| Errores al pagar | 13:23 – 15:04 (1 h 41 min) |
-| Caída total | 14:38 – 15:04 (26 min) |
-| Operaciones fallidas el 18-sep | ~1.985 (496 errores de la aplicación + 1.489 rechazos con el portal apagado) |
-| Confirmaciones / inicios de pago fallidos | 141 / 134 |
-| Disponibilidad real del viernes | **94,5 %** (92,7 % si se exige respuesta en menos de 3 s) |
-| Disponibilidad real de la semana | 98,6 % |
+| Lento / errores al pagar / caído | 11:20–15:04 (3 h 44 min) / 13:23–15:04 / 14:38–15:04 (26 min) |
+| Operaciones fallidas el 18 | ~1.985 (496 errores de la aplicación + 1.489 rechazos con el portal apagado) |
+| Disponibilidad real viernes / semana | **94,5 %** (92,7 % exigiendo respuesta < 3 s) / 98,6 % |
 | Disponibilidad reportada por el NOC | 100 % |
+| Reintentos de confirmación | ~630 de más (1,01 confirmaciones por pago iniciado, frente a ~0,84 normal) |
 
 ## 3. Línea de tiempo
 
 | Hora | Qué pasó | Qué vio el cliente | Evidencia |
 |---|---|---|---|
-| Mar 15, 22:03 | Se instala PortalPagos v2.3.1 (nuevo caché de sesiones de pago, logs en nivel Debug) | Nada | Evento AndinaDeploy 1000 |
-| Mié 16 y jue 17 | La memoria del portal sube todo el día (~1,1–1,2 GB) y el reinicio de las 02:00 la baja | Lentitud en la tarde (ticket T-10240, cerrado "monitoreo en verde") | Perfmon, `memoria_w3wp.png` |
-| Vie 18, 08:00–11:00 | La memoria crece más rápido por el alto tráfico | Nada | Perfmon |
-| **11:20** | Empieza la degradación: el tiempo de respuesta pasa de ~0,5 s a 1–3 s | Lentitud; muchos abandonan | Logs IIS (p95) |
-| **13:23** | Primer error al confirmar pagos por falta de memoria | "Ha ocurrido un error inesperado" (T-10252) | IIS + evento ASP.NET 1309 |
-| 14:22 – 14:38 | El proceso del portal se cae 5 veces | Errores intermitentes | Eventos .NET 1026 / WAS 5011 |
-| **14:38** | IIS apaga el portal por fallas repetidas (protección automática) | "Service Unavailable" para todos (T-10255) | Evento WAS 5002, log HTTP.sys |
-| **15:04** | Se reinicia el portal manualmente | Servicio normal | Último error 15:03:59 |
-| 16:37 | Alerta de disco casi lleno | Nada | Evento srv 2013 |
+| Mar 15, 22:03 | Se instala la v2.3.1 (caché de sesiones de pago, logs en Debug) | Nada | AndinaDeploy 1000 |
+| Mié 16 – jue 17 | La memoria sube a 1,1–1,2 GB y el reinicio de 02:00 la baja | Lentitud el jueves (T-10240, cerrado "monitoreo en verde") | Perfmon |
+| **Vie 11:20** | Degradación: p95 pasa de 0,5 s a 1–3 s | Lentitud | Logs IIS |
+| **13:23** | Primer error al confirmar pago (falta de memoria) | "Error inesperado" (T-10252) | IIS, ASP.NET 1309 |
+| 14:22–14:38 | El proceso del portal se cae 5 veces | Errores intermitentes | .NET 1026, WAS 5011 |
+| **14:38** | IIS apaga el pool por fallas repetidas | "Service Unavailable" (T-10255) | WAS 5002, HTTP.sys |
+| **15:04** | Reinicio manual del pool | Servicio normal | Último 503: 15:03:59 |
 
-## 4. Causa raíz y factores que contribuyeron
+![Incidente del 18 de septiembre](resultados/incidente_18sep.png)
 
-**Hechos (con evidencia):**
-- Los errores son `OutOfMemoryException` dentro de `SesionPagoCache.Agregar`, componente que llegó con la v2.3.1.
-- Antes de la actualización, la memoria máxima diaria era ~320 MB; después: 1.091 MB (16-sep), 1.186 MB (17-sep) y 1.478 MB al caer (18-sep). Tras el reinicio manual del viernes volvió a subir a casi 1 GB esa misma noche.
+## 4. Causa raíz
 
-**Hipótesis (por confirmar):**
-- El caché no expulsa sesiones antiguas, por lo que crece con el número de pagos.
-- El portal falla cerca de 1,4 GB aunque el servidor tenía ~4,7 GB libres: probablemente el pool corre en modo 32 bits. Se confirma revisando `enable32BitAppOnWindows`.
+**Comprobado con los datos:**
+- Todos los errores son `OutOfMemoryException` en `SesionPagoCache.Agregar`, componente que llegó con la v2.3.1.
+- Memoria máxima diaria: ~320 MB antes de la actualización; 1.091, 1.186 y 1.478 MB el 16, 17 y 18.
+- Crece con los pagos: correlación horaria de **0,993** (~0,25 MB por operación). El error llegó tras ~4.200 operaciones de pago desde el reinicio de 02:00.
 
-**Factores que contribuyeron:**
-1. **El reinicio nocturno ocultó la falla** durante dos días.
-2. **El monitoreo no mide lo que importa:** `/health` respondió en 2 ms incluso cuando pagar tardaba 25 s, y sus fallos solo quedaron en un log que nadie revisa.
-3. **Una señal temprana se descartó:** el ticket del jueves se cerró porque "el monitoreo estaba en verde".
-4. **Cambios sin seguimiento:** no hubo revisión después de la actualización, y el 16-sep se instaló un proxy delante del servidor sin registro.
-5. **Pico de demanda previsible:** cierre de plazo de pago, 44 % más tráfico.
+**Hipótesis por confirmar:** el caché no expulsa sesiones antiguas. Un `OutOfMemoryException` sale donde falla la asignación, no necesariamente donde está la fuga; se confirma analizando los 5 volcados de memoria (`C:\CrashDumps`). El portal cae cerca de 1,4 GB con 4,7 GB libres en el servidor, lo que sugiere un pool en 32 bits (`enable32BitAppOnWindows`).
 
-**Descartado:** las advertencias DCOM 10016 (ticket T-10261) aparecen igual toda la semana y no tienen relación con la caída.
+**Descartado:** DCOM 10016 (T-10261), constante toda la semana; y el retiro de D: o el proxy del 16, porque la memoria ya subía desde las 07:00, antes de ambos cambios.
 
-## 5. ¿Se podía ver venir?
+![Memoria del portal durante la semana](resultados/memoria_w3wp.png)
 
-Sí, **desde el miércoles 16 en la mañana**, con más de dos días de anticipación:
-- Memoria máxima del portal: se triplicó frente a los días previos a la actualización.
-- Disco: empezó a perder ~7 GB diarios.
-- Tiempo de respuesta (p95): 544 → 572 → 686 ms, y 1.912 ms el viernes.
+## 5. Por qué llegó a los clientes y cuándo se pudo ver
 
-## 6. Otros riesgos encontrados
+1. El reinicio nocturno de IIS escondió la falla dos días.
+2. `/health` responde en 2 ms aunque pagar tarde 25 s, y sus 52 fallos quedaron en un log que nadie revisa (HTTP.sys).
+3. El ticket del jueves por lentitud se cerró por "monitoreo en verde".
+4. Cambios sin seguimiento: sin revisión post-despliegue, y un aparente proxy nuevo desde el 16 sin evento ni ticket.
+
+Simulando alertas sobre los mismos datos: **memoria > 1 GB** habría avisado el miércoles 16 a las 18:40 (casi dos días antes); **latencia > 2 veces lo normal por 15 min**, el viernes a las **12:00**, 1 h 34 min antes del primer ticket y sin falsas alarmas de lunes a jueves.
+
+## 6. Otros riesgos
 
 | Riesgo | Urgencia | Detalle |
 |---|---|---|
-| Disco C: lleno | 🔴 Inmediata | Consumo ~240 MB por cada 1.000 operaciones; con 10,9 GB libres se llena **el martes 22-sep**. Una nueva caída lo llena en horas (volcados de memoria) |
-| Fuga de memoria en producción | 🔴 Inmediata | El próximo día de alto tráfico se repite la caída |
-| Logs de auditoría sin copiar desde el 16-sep | 🟠 Alta | El mantenimiento apunta a la unidad D:, retirada ese día, y aun así reporta "Proceso OK" |
-| Logs en nivel Debug en producción | 🟠 Alta | Llenan el disco y pueden contener datos sensibles |
-| Contraseña en texto plano en el script de mantenimiento | 🟡 Media | Cuenta de servicio de 2019 |
+| Disco C: lleno | Crítica | ~240 MB por cada 1.000 peticiones; con 10,9 GB libres se llena el martes 22. Una nueva caída lo llena en horas (volcados) |
+| Fuga en producción | Crítica | El portal aguanta ~4.200 operaciones de pago al día |
+| Cobros duplicados | Alta | Verificar que `/api/pagos/confirmar` sea idempotente y cruzar con el sistema de pagos |
+| Auditoría sin copiar desde el 16 | Alta | El script apunta a D:, retirada ese día, y dice "Proceso OK" |
+| Contraseña en texto plano | Media | Cuenta de servicio en el script de mantenimiento |
 
-## 7. Acciones
+## 7. Acciones recomendadas
 
-| # | Acción | Tipo | Plazo |
-|---|---|---|---|
-| 1 | Liberar disco y bajar el nivel de logs a Information | Contener | Inmediato |
-| 2 | Revertir a v2.3.0 o corregir el caché (límite de tamaño y expiración) | Corregir | Antes del próximo cierre de pagos |
-| 3 | Reciclaje del pool por umbral de memoria como red de seguridad temporal | Contener | Esta semana |
-| 4 | Health check profundo que pruebe una transacción real, y monitoreo sintético externo | Detectar | 2 semanas |
-| 5 | Alertas por tasa de errores, latencia p95, memoria y disco | Detectar | 2 semanas |
-| 6 | Revisión post-despliegue obligatoria a las 24 h y registro de todo cambio | Prevenir | 1 mes |
-| 7 | Reemplazar el script de mantenimiento (ver Reto 2) y rotar la credencial expuesta | Prevenir | 2 semanas |
+| Acción | Para qué | Plazo |
+|---|---|---|
+| Mover los volcados de memoria, liberar disco y bajar logs a Information | Contener | Inmediato |
+| Volver a v2.3.0 o poner límite y expiración al caché | Corregir | Antes del próximo cierre |
+| Reciclar el pool por umbral de memoria (red temporal) | Contener | Esta semana |
+| Health check transaccional, monitoreo sintético y alertas de errores, p95, memoria y disco | Detectar | 2 semanas |
+| Revisión 24 h post-despliegue, registro de cambios, nuevo script de mantenimiento y rotación de la clave | Prevenir | 1 mes |
 
 _Cifras reproducibles con `python analizar.py`; detalle en `resultados/`._

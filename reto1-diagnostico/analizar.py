@@ -11,6 +11,8 @@ Lee el kit tal como lo entrego soporte y produce, en la carpeta de salida:
     - senales_diarias.csv       memoria pico, p95 y disco libre por dia
     - pronostico_disco.md       cuando se llena el disco C: y con que metodo
     - eventos_clave.csv         eventos relevantes (sin ruido DCOM/Schannel/SCM)
+    - analisis_avanzado.md      memoria vs pagos, reintentos, trafico vs base, deteccion hipotetica
+    - powerbi/*.csv             tablas limpias para validar las cifras en Power BI (ver POWERBI.md)
     - graficas *.png
 
 Convencion de tiempo: TODO se presenta en hora de Colombia (UTC-05:00, sin horario de verano).
@@ -220,6 +222,132 @@ def eventos_clave(ev) -> pd.DataFrame:
     return e[["ts", "LogName", "ProviderName", "Id", "LevelDisplayName", "Message"]]
 
 
+# --------------------------------------------------------------------------- analisis avanzado
+PAGOS = ["/api/pagos/iniciar", "/api/pagos/confirmar"]
+
+
+def analisis_avanzado(iis, http, perf) -> str:
+    u = iis[iis["cs-uri-stem"] != "/health"]
+    out = ["## Analisis avanzado\n"]
+
+    # 1) La memoria crece con cada operacion de pago (evidencia de que la fuga esta en el cache de pagos)
+    pag = u[u["cs-uri-stem"].isin(PAGOS) & (u["sc-status"] < 500)]
+    hr = pd.DataFrame({"pagos": pag.set_index("ts").resample("1h").size(),
+                       "peticiones": u.set_index("ts").resample("1h").size(),
+                       "mem": perf["w3wp_mb"].resample("1h").last()})
+    hr["delta_mem"] = hr["mem"].diff()
+    x = hr.loc["2026-09-16 04:00":"2026-09-18 12:00"].dropna()
+    x = x[~x.index.hour.isin([2, 3])]  # excluir el reinicio nocturno
+    r_pag = np.corrcoef(x["pagos"], x["delta_mem"])[0, 1]
+    r_req = np.corrcoef(x["peticiones"], x["delta_mem"])[0, 1]
+    mb_op = np.polyfit(x["pagos"], x["delta_mem"], 1)[0]
+    ops_crash = len(pag[(pag["ts"] >= "2026-09-18 02:00") & (pag["ts"] < "2026-09-18 13:24")])
+    out.append("### 1. La memoria crece con cada pago\n")
+    out.append(f"- Correlacion por hora entre crecimiento de memoria y operaciones de pago: **{r_pag:.3f}** "
+               f"(contra {r_req:.3f} con el total de peticiones).")
+    out.append(f"- Cada operacion de pago deja ~**{mb_op:.2f} MB** retenidos en memoria.")
+    out.append(f"- El 18-sep el primer OutOfMemory llego tras **{ops_crash:,} operaciones de pago** desde el reinicio de 02:00. "
+               f"El 16 y 17 hubo ~3.600 y ~4.000 en el dia completo: estuvieron cerca del limite.")
+    out.append("- Implicacion: el portal aguanta ~4.200 operaciones de pago por dia. Cualquier dia por encima se cae.\n")
+
+    # 2) Embudo de pagos: confirmaciones > inicios el 18 => reintentos
+    f = u[u["cs-uri-stem"].isin(PAGOS)]
+    emb = f.groupby([f["ts"].dt.date, "cs-uri-stem"]).size().unstack()
+    emb["confirmar/iniciar"] = (emb["/api/pagos/confirmar"] / emb["/api/pagos/iniciar"]).round(2)
+    normal = emb.loc[emb.index != pd.Timestamp("2026-09-18").date(), "confirmar/iniciar"].median()
+    d18 = emb.loc[pd.Timestamp("2026-09-18").date()]
+    extra = d18["/api/pagos/confirmar"] - normal * d18["/api/pagos/iniciar"]
+    out.append("### 2. Reintentos de confirmacion de pago\n")
+    try:
+        out.append(emb.to_markdown())
+    except ImportError:  # to_markdown requiere el paquete tabulate
+        out.append(emb.to_string())
+    out.append(f"\n- En un dia normal se confirman ~{normal:.0%} de los pagos iniciados. El 18-sep hubo **mas "
+               f"confirmaciones que inicios** ({d18['confirmar/iniciar']:.2f}): ~{extra:,.0f} intentos de confirmacion de mas.")
+    out.append("- Hipotesis: los clientes reintentaron al recibir errores. **Riesgo:** si `/api/pagos/confirmar` no es "
+               "idempotente, pudo haber cobros duplicados. Se debe cruzar con el sistema de pagos.\n")
+
+    # 3) Trafico frente a un dia normal (descarta abandono masivo antes de la caida)
+    by = u.groupby([u["ts"].dt.hour, u["ts"].dt.date]).size().unstack()
+    base = by[[c for c in by.columns if str(c) in ("2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17")]].mean(axis=1)
+    rel = (by[pd.Timestamp("2026-09-18").date()] / base).round(2)
+    out.append("### 3. Trafico del 18 frente a un dia habil promedio (misma hora)\n")
+    out.append(" | ".join(f"{h}h: {rel[h]:.2f}x" for h in range(7, 19)))
+    out.append("\n- El trafico se mantuvo ~1,5x durante la degradacion y solo cayo en la hora de la caida (14h). "
+               "No hay evidencia de abandono masivo por lentitud; el impacto fue sobre todo errores y espera.\n")
+
+    # 4) Cuando habria detectado un monitoreo adecuado (MTTD hipotetico)
+    w = u.set_index("ts").resample("5min")
+    s5 = pd.DataFrame({"n": w.size(), "e": w["sc-status"].apply(lambda v: (v >= 500).sum()),
+                       "p95": w["time-taken"].quantile(0.95)})
+    s5["h"] = http[~http["cs-uri"].str.startswith("/health")].set_index("ts").resample("5min").size().reindex(s5.index).fillna(0)
+    s5["pct"] = 100 * (s5["e"] + s5["h"]) / (s5["n"] + s5["h"]).clip(lower=1)
+    base_p95 = s5.loc["2026-09-14":"2026-09-17", "p95"].median()
+    d = s5.loc["2026-09-18"]
+    lat = ((d["p95"] > 2 * base_p95) & (d["n"] >= 100)).astype(int).rolling(3).sum()
+    falsos = sum(((s5.loc[x, "p95"] > 2 * base_p95) & (s5.loc[x, "n"] >= 100)).astype(int).rolling(3).sum().ge(3).any()
+                 for x in ["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17"])
+    reglas = [
+        ("Memoria w3wp > 1 GB", perf["w3wp_mb"][perf["w3wp_mb"] > 1000].index.min()),
+        ("Disco C: < 30 % libre", perf["disco_libre_pct"][perf["disco_libre_pct"] < 30].index.min()),
+        # para reglas por ventana, el aviso ocurre al CERRAR la ventana (inicio + 5 min)
+        (f"p95 > 2x linea base ({2*base_p95:.0f} ms) por 15 min, con >=100 pet/5 min",
+         lat[lat >= 3].index.min() + pd.Timedelta(minutes=5)),
+        ("Errores (5xx + 503) > 5 % en 5 min, con >=50 pet",
+         d[(d["pct"] > 5) & ((d["n"] + d["h"]) >= 50)].index.min() + pd.Timedelta(minutes=5)),
+        ("Sonda sintetica externa (falla de /health)", http[http["cs-uri"].str.startswith("/health")]["ts"].min()),
+        ("Primer ticket de cliente (real)", pd.Timestamp("2026-09-18 13:34")),
+        ("Recuperacion manual (real)", pd.Timestamp("2026-09-18 15:04")),
+    ]
+    out.append("### 4. Cuando habria avisado un monitoreo adecuado\n")
+    out.append("| Regla | Habria disparado |\n|---|---|")
+    dias = ["lun", "mar", "mie", "jue", "vie", "sab", "dom"]
+    out += [f"| {n} | {dias[t.dayofweek]} {t:%d-%m %H:%M} |" for n, t in reglas]
+    out.append(f"\n- La regla de latencia no habria dado falsas alarmas los dias 14 a 17 (dias con disparo: {falsos}).")
+    t_lat = reglas[2][1]
+    ticket, caida = pd.Timestamp("2026-09-18 13:34"), pd.Timestamp("2026-09-18 14:38")
+    fmt = lambda td: f"{int(td.total_seconds()//3600)} h {int(td.total_seconds()%3600//60)} min"
+    out.append(f"- Con la alerta de latencia se habria detectado **{fmt(ticket - t_lat)} antes del primer ticket** y "
+               f"**{fmt(caida - t_lat)} antes de la caida**; con la de memoria, casi **dos dias antes**.\n")
+    return "\n".join(out)
+
+
+# --------------------------------------------------------------------------- exportacion para Power BI
+def exportar_powerbi(iis, http, perf, ev, kit: Path, salida: Path) -> None:
+    """Tablas limpias (hora Colombia) para validar las cifras en Power BI. Ver POWERBI.md."""
+    d = salida / "powerbi"
+    d.mkdir(parents=True, exist_ok=True)
+    a = pd.DataFrame({
+        "fecha_hora": iis["ts"], "fuente": "IIS", "endpoint": iis["cs-uri-stem"],
+        "status": iis["sc-status"], "tiempo_ms": iis["time-taken"], "ip_cliente": iis["ip_cliente"],
+    })
+    b = pd.DataFrame({
+        "fecha_hora": http["ts"], "fuente": "HTTP.sys", "endpoint": http["cs-uri"],
+        "status": pd.to_numeric(http["sc-status"], errors="coerce"), "tiempo_ms": np.nan, "ip_cliente": http["c-ip"],
+    })
+    pet = pd.concat([a, b], ignore_index=True).sort_values("fecha_hora")
+    pet["fecha"] = pet["fecha_hora"].dt.date
+    pet["hora"] = pet["fecha_hora"].dt.hour
+    pet["ventana_10min"] = pet["fecha_hora"].dt.floor("10min")
+    pet["es_sonda_noc"] = pet["endpoint"].eq("/health")
+    pet["es_escaneo"] = pet["status"].eq(404)
+    pet["es_cliente"] = ~pet["es_sonda_noc"] & ~pet["es_escaneo"] & pet["status"].notna()
+    pet["es_error"] = pet["status"].ge(500)
+    pet["es_pago"] = pet["endpoint"].isin(["/api/pagos/iniciar", "/api/pagos/confirmar"])
+    pet.to_csv(d / "peticiones.csv", index=False, date_format="%Y-%m-%d %H:%M:%S")
+
+    pm = perf.reset_index()[["ts", "cpu_pct", "mem_disponible_mb", "disco_libre_pct", "disco_libre_mb", "w3wp_mb", "conexiones"]]
+    pm.rename(columns={"ts": "fecha_hora"}).to_csv(d / "perfmon.csv", index=False, date_format="%Y-%m-%d %H:%M:%S")
+
+    e = ev[["ts", "LogName", "ProviderName", "Id", "LevelDisplayName", "Message"]].copy()
+    e["es_ruido"] = e["Id"].isin(RUIDO_EVENTOS)
+    e["Message"] = e["Message"].str.slice(0, 250)
+    e.rename(columns={"ts": "fecha_hora"}).to_csv(d / "eventos.csv", index=False, date_format="%Y-%m-%d %H:%M:%S")
+
+    t = pd.read_csv(kit / "tickets" / "tickets_mesa_servicio.csv")
+    t.to_csv(d / "tickets.csv", index=False)
+
+
 # --------------------------------------------------------------------------- graficas
 def graficar(perf, tl, salida: Path):
     fig, ax = plt.subplots(figsize=(11, 4))
@@ -234,11 +362,12 @@ def graficar(perf, tl, salida: Path):
     ax.set_title("Disco C: libre (GB)"); ax.set_ylabel("GB")
     fig.tight_layout(); fig.savefig(salida / "disco_libre.png", dpi=120); plt.close(fig)
 
-    fig, ax1 = plt.subplots(figsize=(11, 4))
-    ax1.bar(tl.index, tl["errores_5xx"] + tl["503_httpsys"], width=0.006, color="tab:red", label="errores (5xx + 503)")
-    ax2 = ax1.twinx(); ax2.plot(tl.index, tl["p95_ms"] / 1000, c="tab:blue", label="p95 (s)")
-    ax1.set_ylabel("errores / 10 min"); ax2.set_ylabel("p95 latencia (s)")
-    ax1.set_title("18-sep (hora Colombia): degradacion desde ~11:20, errores desde 13:23, caida 14:38-15:04")
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(11, 5.5), sharex=True, gridspec_kw={"height_ratios": [3, 2]})
+    ax1.plot(tl.index, tl["p95_ms"] / 1000, c="tab:blue", lw=1.8)
+    ax1.set_ylabel("p95 (s)"); ax1.grid(axis="y", alpha=.3)
+    ax1.set_title("18-sep (hora Colombia): lentitud desde ~11:20, errores desde 13:23, caida 14:38-15:04")
+    ax2.bar(tl.index, tl["errores_5xx"] + tl["503_httpsys"], width=0.006, color="tab:red")
+    ax2.set_ylabel("errores / 10 min"); ax2.grid(axis="y", alpha=.3)
     fig.tight_layout(); fig.savefig(salida / "incidente_18sep.png", dpi=120); plt.close(fig)
 
 
@@ -268,11 +397,14 @@ def main():
     (a.salida / "calidad_datos.md").write_text("## Calidad de los datos\n\n" + "\n".join(notas) + "\n\n## Vision del NOC\n\n"
                                                + vision_noc(iis, http) + "\n## Hitos del 18-sep\n\n" + "\n".join(hitos(iis, http, ev)) + "\n",
                                                encoding="utf-8")
+    (a.salida / "analisis_avanzado.md").write_text(analisis_avanzado(iis, http, perf), encoding="utf-8")
+    exportar_powerbi(iis, http, perf, ev, a.kit, a.salida)
     graficar(perf, tl, a.salida)
 
     print((a.salida / "calidad_datos.md").read_text(encoding="utf-8"))
     print(disp.to_string()); print(); print(sen.to_string()); print()
     print((a.salida / "pronostico_disco.md").read_text(encoding="utf-8"))
+    print((a.salida / "analisis_avanzado.md").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
