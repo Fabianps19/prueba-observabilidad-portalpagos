@@ -1,0 +1,92 @@
+[
+ {
+  "que_esta_pasando": "Desde las 13:30 el portal responde muy lento (p95 de 20 a 27 s) y entre 13 % y 20 % de las peticiones fallan con error 500, sobre todo al iniciar y confirmar pagos.",
+  "impacto": {
+   "descripcion": "Clientes no pueden iniciar ni confirmar pagos en el ultimo dia del plazo; unas 180 peticiones cada 5 minutos afectadas por lentitud o error.",
+   "severidad": "critica"
+  },
+  "hipotesis": [
+   {
+    "descripcion": "La aplicacion se esta quedando sin memoria; el error aparece en el cache de sesiones de pago introducido en la v2.3.1.",
+    "probabilidad": "alta",
+    "evidencia": [
+     {
+      "id": "E11",
+      "cita": "OutOfMemoryException"
+     },
+     {
+      "id": "E12",
+      "cita": "cache de sesiones de pago"
+     },
+     {
+      "id": "E14",
+      "cita": "1372 MB -> 1439 MB"
+     }
+    ]
+   },
+   {
+    "descripcion": "El problema afecta principalmente el flujo de pagos.",
+    "probabilidad": "media",
+    "evidencia": [
+     {
+      "id": "E10",
+      "cita": "/api/pagos/confirmar=64"
+     }
+    ]
+   }
+  ],
+  "accion_sugerida": {
+   "runbook": "REINICIAR-SERVIDOR",
+   "justificacion": "La evidencia E15 indica reiniciar el servidor."
+  },
+  "confianza": "alta",
+  "datos_faltantes": [
+   "La alerta reporta 23.4 % pero el recalculo desde los logs da 12.8 % (E02): revisar la consulta de la alerta."
+  ]
+ },
+ {
+  "que_esta_pasando": "Desde las 13:30 el portal responde muy lento (p95 de 20 a 27 s) y entre 13 % y 20 % de las peticiones fallan con error 500, sobre todo al iniciar y confirmar pagos.",
+  "impacto": {
+   "descripcion": "Clientes no pueden iniciar ni confirmar pagos en el ultimo dia del plazo; unas 180 peticiones cada 5 minutos afectadas por lentitud o error.",
+   "severidad": "critica"
+  },
+  "hipotesis": [
+   {
+    "descripcion": "La aplicacion se esta quedando sin memoria; el error aparece en el cache de sesiones de pago introducido en la v2.3.1.",
+    "probabilidad": "alta",
+    "evidencia": [
+     {
+      "id": "E11",
+      "cita": "OutOfMemoryException"
+     },
+     {
+      "id": "E12",
+      "cita": "cache de sesiones de pago"
+     },
+     {
+      "id": "E14",
+      "cita": "1372 MB -> 1439 MB"
+     }
+    ]
+   },
+   {
+    "descripcion": "El problema afecta principalmente el flujo de pagos.",
+    "probabilidad": "media",
+    "evidencia": [
+     {
+      "id": "E10",
+      "cita": "/api/pagos/confirmar=64"
+     }
+    ]
+   }
+  ],
+  "accion_sugerida": {
+   "runbook": "REINICIAR-SERVIDOR",
+   "justificacion": "La evidencia E15 indica reiniciar el servidor."
+  },
+  "confianza": "alta",
+  "datos_faltantes": [
+   "La alerta reporta 23.4 % pero el recalculo desde los logs da 12.8 % (E02): revisar la consulta de la alerta."
+  ]
+ }
+]

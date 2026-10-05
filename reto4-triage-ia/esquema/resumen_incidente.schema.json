@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ResumenIncidente",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["que_esta_pasando", "impacto", "hipotesis", "accion_sugerida", "confianza", "datos_faltantes"],
+  "properties": {
+    "que_esta_pasando": { "type": "string", "minLength": 20, "maxLength": 600 },
+    "impacto": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["descripcion", "severidad"],
+      "properties": {
+        "descripcion": { "type": "string", "minLength": 10, "maxLength": 400 },
+        "severidad": { "enum": ["critica", "alta", "media", "baja"] }
+      }
+    },
+    "hipotesis": {
+      "type": "array", "minItems": 1, "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["descripcion", "probabilidad", "evidencia"],
+        "properties": {
+          "descripcion": { "type": "string", "minLength": 10, "maxLength": 400 },
+          "probabilidad": { "enum": ["alta", "media", "baja"] },
+          "evidencia": {
+            "type": "array", "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "cita"],
+              "properties": {
+                "id": { "type": "string", "pattern": "^E[0-9]{2,3}$" },
+                "cita": { "type": "string", "minLength": 3, "maxLength": 200 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "accion_sugerida": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runbook", "justificacion"],
+      "properties": {
+        "runbook": { "enum": ["RB-01", "RB-02", "RB-03", "RB-04", "RB-05", "RB-06"] },
+        "justificacion": { "type": "string", "minLength": 10, "maxLength": 400 }
+      }
+    },
+    "confianza": { "enum": ["alta", "media", "baja"] },
+    "datos_faltantes": { "type": "array", "items": { "type": "string", "maxLength": 200 } }
+  }
+}
