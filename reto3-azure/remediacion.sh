@@ -24,7 +24,7 @@ var() { az rest --method put --url "$BASE/variables/$1?$V" --body "{\"properties
 var AppPermitida "$APPID"
 var MaxReiniciosHora "2"
 var ModoRemediacion "${MODO:-automatico}"
-var ReiniciosPortal "[]"
+var ReiniciosPortal "h:"
 
 echo "4) Runbook (Windows PowerShell 5.1, solo REST con la identidad administrada)"
 az rest --method put --url "$BASE/runbooks/$RB?$V" --body "{\"location\":\"$LOC\",\"properties\":{\"runbookType\":\"PowerShell\",\"logProgress\":false,\"logVerbose\":false,\"description\":\"Remedia PortalPagos con salvaguardas\"}}" -o none
@@ -32,13 +32,18 @@ az rest --method put --url "$BASE/runbooks/$RB/draft/content?$V" --headers "Cont
 az rest --method post --url "$BASE/runbooks/$RB/publish?$V" -o none
 
 echo "5) Webhook del runbook y Action Group de remediacion"
-URI=$(az rest --method post --url "$BASE/webhooks/generateUri?api-version=2015-10-31" | tr -d '"')
-EXP=$(date -u -d '+7 days' +%FT%TZ)
-az rest --method put --url "$BASE/webhooks/wh-remediacion?api-version=2015-10-31" \
-  --body "{\"name\":\"wh-remediacion\",\"properties\":{\"isEnabled\":true,\"uri\":\"$URI\",\"expiryTime\":\"$EXP\",\"runbook\":{\"name\":\"$RB\"}}}" -o none
-AGR=$(az monitor action-group create -g "$RG" -n ag-remediacion --short-name Remediar \
-  --action webhook runbook-remediacion "$URI" usecommonalertschema --query id -o tsv)
-unset URI
+if az rest --method get --url "$BASE/webhooks/wh-remediacion?api-version=2015-10-31" -o none 2>/dev/null; then
+  echo "   El webhook y el Action Group ya existen: se reutilizan (el URI no se puede leer ni cambiar)"
+else
+  URI=$(az rest --method post --url "$BASE/webhooks/generateUri?api-version=2015-10-31" | tr -d '"')
+  EXP=$(date -u -d '+7 days' +%FT%TZ)
+  az rest --method put --url "$BASE/webhooks/wh-remediacion?api-version=2015-10-31" \
+    --body "{\"name\":\"wh-remediacion\",\"properties\":{\"isEnabled\":true,\"uri\":\"$URI\",\"expiryTime\":\"$EXP\",\"runbook\":{\"name\":\"$RB\"}}}" -o none
+  az monitor action-group create -g "$RG" -n ag-remediacion --short-name Remediar \
+    --action webhook runbook-remediacion "$URI" usecommonalertschema -o none
+  unset URI
+fi
+AGR=$(az monitor action-group show -g "$RG" -n ag-remediacion --query id -o tsv)
 AGID=$(az monitor action-group show -g "$RG" -n ag-portalpagos --query id -o tsv)
 
 echo "6) Trazabilidad: salidas de los jobs a Log Analytics"

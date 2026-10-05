@@ -47,14 +47,17 @@ $url = "https://$($app.properties.defaultHostName)/salud.aspx"
 $salud = Probar-Salud $url
 if ($salud -eq 200) { Registrar 'NO_ACTUA' 'El health check ya responde 200 (se recupero o la alerta mira una ventana pasada)'; return }
 
-$ahora = (Get-Date).ToUniversalTime()
+# Historial de reinicios: texto "h:<seg_unix>,<seg_unix>" (sin JSON ni fechas). Las dos primeras
+# versiones perdian el conteo: PS 5.1 convertia las fechas y la variable devolvia el JSON ya
+# deserializado (errores encontrados en las pruebas en Azure).
+$ahora = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 $hist = @()
 $raw = [string](Get-AutomationVariable -Name 'ReiniciosPortal')
-if ($raw) { $hist = @($raw | ConvertFrom-Json) }
-$recientes = @($hist | Where-Object { $_ -and [DateTimeOffset]::Parse($_).UtcDateTime -gt $ahora.AddMinutes(-60) })
-$ultimo = $recientes | ForEach-Object { [DateTimeOffset]::Parse($_).UtcDateTime } | Sort-Object | Select-Object -Last 1
-if ($ultimo -and $ultimo -gt $ahora.AddMinutes(-5)) {
-    Registrar 'NO_ACTUA' "Enfriamiento: hubo un reinicio a las $($ultimo.ToString('HH:mm:ss'))Z; se espera su efecto"; return
+$hist = @(($raw -replace '^h:', '') -split '[,\s]+' | Where-Object { $_ -match '^\d+$' } | ForEach-Object { [long]$_ })
+$recientes = @($hist | Where-Object { $_ -gt ($ahora - 3600) })
+$ultimo = ($recientes | Measure-Object -Maximum).Maximum
+if ($ultimo -and $ultimo -gt ($ahora - 300)) {
+    Registrar 'NO_ACTUA' "Enfriamiento: hubo un reinicio a las $([DateTimeOffset]::FromUnixTimeSeconds([long]$ultimo).ToString('HH:mm:ss'))Z; se espera su efecto"; return
 }
 $max = [int](Get-AutomationVariable -Name 'MaxReiniciosHora')
 if ($recientes.Count -ge $max) {
@@ -64,10 +67,10 @@ if ($recientes.Count -ge $max) {
 $modo = [string](Get-AutomationVariable -Name 'ModoRemediacion')
 if ($modo -ne 'automatico') { Registrar 'SUGERIR' "Health=$salud. Accion sugerida: reiniciar $($app.name). Modo sugerir: no se ejecuta"; return }
 
-Registrar 'ACTUA' "Health=$salud. Reinicio de $($app.name), intento $($recientes.Count + 1) de $max en 60 min"
+Registrar 'ACTUA' "Health=$salud. Reinicio de $($app.name), intento $($recientes.Count + 1) de $max en 60 min (historial: $($recientes -join ','))"
 Invoke-RestMethod -Method Post -Uri "https://management.azure.com$($appId)/restart?$api" -Headers $h | Out-Null
-$recientes += $ahora.ToString('o')
-Set-AutomationVariable -Name 'ReiniciosPortal' -Value (ConvertTo-Json -InputObject @($recientes) -Compress)
+$recientes += $ahora
+Set-AutomationVariable -Name 'ReiniciosPortal' -Value ('h:' + ($recientes -join ','))
 
 foreach ($i in 1..8) {
     Start-Sleep -Seconds 15

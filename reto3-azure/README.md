@@ -89,7 +89,17 @@ az group delete -n "$RG" --yes --no-wait   # al terminar (guardar antes las capt
 
 ### Prueba 2: auto-remediación disparada por alerta (runbook con salvaguardas)
 
-Resultados, tiempos de detección y recuperación y capturas: `evidencias/RESULTADOS.md` (sección "Prueba 2").
+Detalle y capturas: `evidencias/RESULTADOS.md` (sección "Prueba 2") y `evidencias/07`–`09`.
+
+| Qué se probó | Resultado |
+|---|---|
+| La alerta dispara el runbook sola | **Sí.** De la primera respuesta 5xx a la ejecución del runbook pasaron de 1 a 3 min |
+| Remediación y verificación | **Sí.** En 5 fallas, el runbook reinició y verificó health 200 en 30–60 s. Recuperación total de ~2 a 4 min, frente a 26 min manuales el 18-sep |
+| Cuándo no actuar | **Sí.** Con la app sana, cada nueva ejecución de la alerta registró `NO_ACTUA` |
+| Trazabilidad | **Sí.** Cada decisión quedó como `REMEDIACION {json}` en la salida de los jobs |
+| **Límite de intentos y escalamiento** | **No, todavía.** En Azure el contador se perdía (v1 y v2) y el runbook siguió reiniciando sin escalar. La v3 (historial como texto plano) pasó las pruebas locales; **falta verificarla en Azure con la alerta F**. Es el primer pendiente |
+
+**Pendientes, en orden:** 1) publicar la v3 del runbook y repetir la prueba hasta ver `ESCALAR` y el correo de la alerta F; 2) captura del tablero (Workbook ya desplegado); 3) captura del correo de alerta y del presupuesto; 4) eliminar el grupo de recursos.
 
 Tiempos en UTC en los logs (Bogotá = UTC-5), igual que en el Reto 1.
 
