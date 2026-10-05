@@ -62,6 +62,6 @@ Modelo por defecto `openai/gpt-4.1-mini` (cambiable con `TRIAGE_MODELO`). Para A
 
 La alerta de ejemplo dice **23,4 %** de errores, pero recalculando con los logs de IIS de esa ventana (13:55–14:00) da **12,8 %** (23 de 180). El componente agrega ese recálculo como evidencia (E02) para que la persona vea la discrepancia. Posibles causas: otra ventana de evaluación o una consulta de alerta distinta a la documentada.
 
-## Conexión con el Reto 3
+## Conexión con el Reto 3 (diseño, no implementado)
 
-En Azure, el Action Group de la alerta llamaría a una Azure Function con este mismo código; el resultado se publicaría en el canal del NOC y en Log Analytics. El contexto se obtendría con KQL sobre `W3CIISLog`, `Event` y `Perf` en lugar de los archivos del kit.
+El Reto 3 ya tiene alertas reales con Action Group en Azure. El siguiente paso sería agregar a ese Action Group una Azure Function con este mismo código: la alerta llega en el esquema común (el mismo de `alerta_ejemplo.json`), el contexto se obtiene con KQL (`AppServiceHTTPLogs`, `AzureMetrics` y la bitácora del runbook en el laboratorio; `W3CIISLog`, `Event` y `Perf` en la VM real) y el resumen se publica en el canal del NOC. La Function solo sugiere: la remediación sigue en manos del runbook con salvaguardas y de una persona.

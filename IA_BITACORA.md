@@ -1,52 +1,71 @@
 # Bitácora de uso de IA
 
-## 1. Herramientas y modelos usados
+**Autor:** Fabián Augusto Pinzón Silva · **Entrega:** 5 de octubre de 2026
 
-| Herramienta / modelo | Para qué la usé |
-|---|---|
-| Claude (Anthropic), en conversación con acceso a archivos | Lectura del enunciado y del kit, análisis exploratorio, borradores de código (Python, PowerShell, KQL), redacción del post-mortem y revisión de cifras |
-| GitHub Models (`openai/gpt-4.1-mini`), opcional | Modelo que consume el componente de triage del Reto 4 en ejecución real |
-| Proveedor simulado (respuestas grabadas) | Pruebas deterministas del Reto 4, incluyendo respuestas erróneas a propósito |
+Usé IA en los cinco retos como copiloto: para leer y explorar datos, escribir borradores de código y documentos, y operar Azure desde Cloud Shell con mi aprobación. Las decisiones las tomé yo, y verifiqué cada resultado contra los datos o ejecutándolo. Esta bitácora resume qué le pedí, qué entregó, dónde se equivocó y cómo lo controlé.
 
-## 2. Prompts clave (5 a 10)
+**En cifras:** 9 prompts clave · **8 errores de la IA detectados y corregidos** · 0 secretos en el historial del repositorio (verificado sobre los 8 commits).
 
-| # | Prompt (resumen) | Qué respondió la IA (resumen) | Qué hice con eso |
+## 1. Herramientas y modelos
+
+| Herramienta / modelo | Uso | Dónde |
+|---|---|---|
+| **Claude (Anthropic)**, asistente con acceso a archivos y al navegador | Análisis exploratorio del kit, borradores de código (Python, PowerShell, KQL, bash), redacción y revisión de documentos, y operación de Azure Cloud Shell con mi aprobación | Retos 1–5 |
+| **GitHub Models** (`openai/gpt-4.1-mini`) | Modelo que consume el componente de triage en ejecución real | Reto 4 |
+| **Proveedor simulado** (respuestas grabadas) | Pruebas deterministas, incluidas respuestas erróneas a propósito (alucinación, JSON inválido, timeout, inyección) | Reto 4 |
+
+## 2. Prompts clave
+
+| # | Prompt (resumen) | Qué respondió la IA | Qué hice con eso |
 |---|---|---|---|
-| 1 | "Analiza el adjunto" (enunciado de la prueba) | Resumen de lo que evalúan, trampas probables del kit (UTC, 503 solo en HTTP.sys, duplicados) y plan por días | Lo usé para priorizar; las trampas las verifiqué una por una con el kit |
-| 2 | "Este es el kit" (zip) | Hallazgos: duplicado por hash, `#Fields` que cambia, OOM en `SesionPagoCache`, despliegue del 15-sep, disco y DCOM como pista falsa | Base del diagnóstico; corregí el supuesto de abandono de clientes (error 2) |
-| 3 | "¿Hay forma de llevar el análisis a un siguiente nivel?" | Correlación memoria-pagos (0,993), reintentos de confirmación, detección simulada con reglas de alerta | Lo incorporé al script; la IA tuvo que corregir la hora de las alertas (al cierre de la ventana) |
-| 4 | "Realiza una última revisión: que todo lo que se suministra sea cierto" | Recalculó las cifras con un script independiente y encontró pagos fallidos subestimados (141 → 250) | Corregí el post-mortem y agregué causas descartadas con datos |
-| 5 | "El post-mortem debe ser de 3 hojas" | Versión condensada verificada con un PDF A4 real (3 páginas) | Acepté; revisé que no se perdieran cifras clave |
-| 6 | Siguiente paso: script PowerShell del Reto 2 | Módulo con `-WhatIf`, log JSON, códigos de salida y pruebas Pester | Detecté que el `-WhatIf` borraba archivos (error 3) y corrí las 15 pruebas en mi Windows |
-| 7 | Siguiente paso: triage con IA del Reto 4 | Esquema, catálogo cerrado, validación de citas, respaldo y casos de prueba (incluido uno de inyección en un log) | Revisé cada caso; el de inyección lo puedo defender desde mi especialización en seguridad |
-| 8 | "Inicia el punto 3 en mi equipo" (Reto 3 en Azure) | Desplegó por Cloud Shell la app simulada, Log Analytics, alertas A–D con correo y Auto-Heal; corrió la simulación de la fuga y midió los tiempos | La contraseña de la VM la escribí yo (la IA no maneja credenciales). Revisé los tiempos contra los CSV y las alertas, y documenté las alertas que **no** se dispararon |
-| 9 | "Verifica punto a punto contra el enunciado antes del último push" | Tabla de cumplimiento: el punto 14 (remediación desde una alerta con límite de intentos y escalamiento) y el 15 (tablero) no se cumplían; faltaban p95 y 5xx por endpoint en KQL y un script para reproducir el Reto 3 | Pedí completar todo: runbook con salvaguardas disparado por alerta, Workbook, `desplegar.sh` y una segunda prueba medida |
+| 1 | "Analiza el adjunto" (enunciado) | Qué se evalúa, trampas probables del kit (UTC, 503 solo en HTTP.sys, duplicados) y plan por días | Prioricé con eso y verifiqué cada trampa contra el kit |
+| 2 | "Este es el kit" | Hallazgos: duplicado por hash, `#Fields` que cambia, `OutOfMemoryException` en `SesionPagoCache`, despliegue del 15-sep, DCOM como pista falsa | Base del diagnóstico. Descarté una conclusión falsa (error 2) |
+| 3 | "¿Cómo llevo el análisis a un siguiente nivel?" | Correlación memoria-pagos (0,993), reintentos de confirmación y detección simulada con reglas de alerta | Lo incorporé al script. Corregí la hora de las alertas para que cuente al cierre de la ventana |
+| 4 | "Revisa que todo lo que se entrega sea cierto" | Recálculo independiente de las cifras: los pagos fallidos estaban subestimados (141 → 250) | Corregí el post-mortem y agregué las causas descartadas con datos |
+| 5 | "El post-mortem debe tener máximo 3 páginas" | Versión condensada, verificada en un PDF A4 real | Revisé que no se perdiera ninguna cifra clave |
+| 6 | Script PowerShell del Reto 2 | Módulo con `-WhatIf`, log JSON, códigos de salida y pruebas Pester | Detecté que `-WhatIf` borraba archivos (error 3). Corrí las 15 pruebas en mi equipo |
+| 7 | Triage con IA del Reto 4 | Esquema, catálogo cerrado, validación de citas, respaldo sin IA y casos de prueba | Revisé cada caso. El de inyección lo sustento desde mi especialización en seguridad |
+| 8 | "Inicia el Reto 3 en mi equipo" | Despliegue por Cloud Shell: app simulada, Log Analytics, alertas con correo y simulación de la falla con tiempos medidos | Escribí yo las credenciales. Revisé los tiempos contra los datos y documenté las alertas que **no** se dispararon |
+| 9 | "Verifica punto a punto contra el enunciado antes del último push" | Tabla de cumplimiento: faltaban la remediación disparada por alerta con salvaguardas (punto 14), el tablero (15), p95 y 5xx en KQL (12) y un script de despliegue reproducible | Completé todo y repetí la prueba en Azure, lo que reveló el error 8 |
 
-## 3. Situaciones en que la IA se equivocó o propuso algo riesgoso (mínimo 3)
+## 3. Errores de la IA y cómo los corregí
 
-| # | Qué propuso la IA | Cómo me di cuenta | Cómo lo corregí |
-|---|---|---|---|
-| 1 | El script de análisis detectaba el duplicado del 16, pero marcaba como duplicado el archivo **original** y conservaba `u_ex260916 - copia.log` (al ordenar por nombre, el espacio va antes del punto). | Al leer la salida, el reporte decía que el original era la copia. | Hice que los archivos con "copia" se procesen de últimos. Las cifras no cambiaban, pero la trazabilidad del reporte sí. |
-| 2 | En el diagnóstico inicial la IA afirmó que "muchos clientes abandonaron por la lentitud", porque las peticiones cada 10 min bajaron de ~700 a ~340 entre las 11:00 y las 13:00. | Al comparar contra la **misma hora** de los días anteriores, el tráfico del 18 se mantuvo en ~1,5x hasta la caída: la baja era el patrón normal del mediodía. | Quité la afirmación del post-mortem y agregué al script la comparación por hora contra la línea base (`analisis_avanzado.md`, sección 3). |
-| 3 | En el Reto 2, la primera versión del script PowerShell pasaba `-WhatIf` al script principal, pero **en modo simulación copiaba y borraba archivos de verdad**: la preferencia `-WhatIf` no se propaga a las funciones de un módulo (scope distinto). | Probando en carpetas de prueba: después de la "simulación" los logs ya estaban borrados. | Se pasa `-WhatIf` explícitamente a cada paso (`@sim`), se agregaron pruebas Pester que verifican que `-WhatIf` no cambia nada y la demo `demo-local.ps1` lo comprueba antes y después. |
-| 4 | Al documentar los problemas del `.BAT`, la IA copió la línea del `net use` **con la contraseña real incluida** en `PROBLEMAS.md`, que iba a subirse al repositorio. | Revisión de secretos antes de cada commit (búsqueda de la clave en todos los archivos a versionar). | Se reemplazó por `<clave>` y se dejó explícito que se omite a propósito. |
-| 5 | En el Reto 3 la IA intentó crear la VM con tamaños que mi suscripción de prueba no permitía (cuota 0 o sin capacidad), y al pasar a App Service el plan quedó en **Linux** porque así lo crea ahora la CLI por defecto, lo que no sirve para una app ASP.NET sobre IIS. | Los errores `SkuNotAvailable`/cuota de Azure y el mensaje "Linux Runtime ASPNET is not supported". | Se consultaron cuotas y capacidad antes de reintentar, se pasó a App Service Windows (`--is-linux false`), se borró el plan Linux vacío y se documentó la adaptación en el README del reto. |
-| 6 | Tras la primera prueba en Azure, la IA presentó Auto-Heal como la auto-remediación del Reto 3. Pero el enunciado pide que **se dispare desde una alerta** y tenga **límite de intentos, cuándo no actuar y escalamiento**; Auto-Heal no tiene nada de eso, y en la prueba reinició dos veces sin frenarse. | Revisión punto a punto contra el enunciado antes del último push. | Se implementó un runbook disparado por la alerta E con límite de 2 reinicios por hora, enfriamiento, ventana de mantenimiento, modo sugerir, verificación y escalamiento (alerta F). Auto-Heal quedó documentado como primera línea opcional. |
-| 7 | El PDF del post-mortem mostraba la lista de "Comprobado con los datos" como un solo párrafo con guiones (el conversor de Markdown no reconoce una lista sin línea en blanco antes). | Al revisar las páginas renderizadas del PDF en la misma revisión. | Se regeneró con el formato GFM; se verificó que sigue en 3 páginas A4. |
-| 8 | El runbook que escribió la IA guardaba el historial de reinicios como JSON con fechas. Pasaba en la revisión de código, pero en Azure el límite de 2 reinicios por hora **nunca se cumplió**: reinició 4 veces seguidas sin escalar. Una segunda corrección de la IA (segundos Unix en JSON) también falló en Azure. | Probando en Azure: la salida del job decía "intento 2 de 2" en cada falla. | La v3 guarda texto plano; probada localmente con los dos comportamientos observados. **Pendiente verificar en Azure.** Lección: una salvaguarda solo cuenta cuando se ve funcionar en el entorno real, no cuando el código "se ve bien". |
+| # | Qué propuso la IA | Cómo lo detecté | Corrección | Impacto si no se detectaba |
+|---|---|---|---|---|
+| 1 | La detección de duplicados marcaba como copia el archivo **original** y conservaba `u_ex260916 - copia.log` (el espacio se ordena antes del punto) | Leyendo la salida del reporte | Los archivos "copia" se procesan de últimos | Trazabilidad incorrecta en el reporte |
+| 2 | Afirmó que "muchos clientes abandonaron por la lentitud" porque el tráfico bajó de ~700 a ~340 peticiones entre las 11:00 y las 13:00 | Comparando cada hora con la **misma hora** de días anteriores: el tráfico se mantuvo en ~1,5× (era el patrón normal del mediodía) | Retiré la afirmación y agregué al script la comparación contra la línea base | Una conclusión falsa en el post-mortem |
+| 3 | En modo `-WhatIf` el script **borraba archivos de verdad**: la preferencia no se propaga a las funciones de un módulo | Probando en carpetas de prueba: tras la "simulación" los logs no estaban | `-WhatIf` explícito en cada paso (`@sim`), pruebas Pester que lo verifican y demo antes/después | Pérdida de datos en producción al usar la simulación |
+| 4 | Copió la línea `net use` **con la contraseña real** en `PROBLEMAS.md` | Revisión de secretos antes de cada commit | Reemplazada por `<clave>`. Historial verificado sin secretos | Credencial publicada en el repositorio |
+| 5 | Intentó crear la VM con tamaños sin cuota en la suscripción de prueba, y luego dejó el App Service en **Linux** (valor por defecto de la CLI), incompatible con ASP.NET sobre IIS | Errores de cuota de Azure y "Linux Runtime ASPNET is not supported" | Consultar cuotas antes de reintentar, App Service Windows explícito y documentar la adaptación | Tiempo perdido. Ningún recurso quedó huérfano |
+| 6 | Presentó Auto-Heal como la auto-remediación del Reto 3, aunque no se dispara desde una alerta ni tiene límite de intentos ni escalamiento | Revisión punto a punto contra el enunciado | Runbook disparado por alerta con límite, enfriamiento, ventana de mantenimiento, modo sugerir, verificación y escalamiento | Incumplir el punto 14 |
+| 7 | El PDF del post-mortem mostraba una lista como un solo párrafo | Revisando las páginas renderizadas | Regenerado con GFM y verificado en 3 páginas A4 | Documento menos legible para la Dirección |
+| 8 | El límite de "2 reinicios por hora" del runbook **nunca se cumplió en Azure**: el historial se perdía al leerlo (v1: fechas convertidas por PowerShell 5.1; v2: la variable devolvía el JSON ya deserializado). El código "se veía bien" y la v2 pasaba pruebas locales | Ejecutándolo en Azure: cada falla decía "intento 2 de 2" y nunca escaló | v3 con historial en texto plano, probada contra ambos comportamientos. **Verificación en Azure pendiente** (ver `reto3-azure/README.md`) | Reinicios en bucle sobre una fuga activa, el mismo patrón que escondió el incidente |
+
+**Lección principal:** los errores 3 y 8 solo aparecieron al **ejecutar**, no al leer el código. Por eso una salvaguarda solo la doy por buena cuando la veo funcionar en el entorno real.
 
 ## 4. Cómo validé lo que generó la IA
 
-- Toda cifra del post-mortem sale de `analizar.py`, que se puede volver a ejecutar; ninguna se copió de una respuesta de la IA.
-- Pruebas automáticas (`pytest`) para las dos trampas del parser: cambio de `#Fields` y conversión UTC → Colombia.
-- Verifiqué a mano hitos clave contra los archivos crudos (p. ej. primer 503 en `httperr1.log`, evento WAS 5002 en el CSV de eventos).
-- Las reglas de alerta simuladas se probaron también sobre los días normales para medir falsas alarmas.
-- Reto 3: los tiempos de detección y recuperación salen del CSV de la carga y de las alertas registradas en Azure, no de estimaciones (`reto3-azure/evidencias/RESULTADOS.md`).
+- **Cifras:** cada número del post-mortem sale de `analizar.py`, que se puede volver a ejecutar. Ninguna se copió de una respuesta del modelo.
+- **Pruebas automáticas:** `pytest` para las trampas del parser (cambio de `#Fields`, UTC → Colombia) y para los 6 casos del triage. Pester (15 pruebas) para el script de mantenimiento, ejecutado en mi equipo.
+- **Datos crudos:** verifiqué a mano los hitos clave, como el primer 503 en `httperr1.log` y el evento WAS 5002 en el CSV de eventos.
+- **Umbrales:** las reglas de alerta se probaron también sobre los días normales, para medir falsas alarmas.
+- **Azure:** los tiempos de detección y recuperación salen de las ejecuciones del runbook, de los logs en Log Analytics y del CSV de la carga, no de estimaciones (`reto3-azure/evidencias/RESULTADOS.md`).
+- **Seguridad:** revisé el historial completo (8 commits) en busca de la contraseña del kit, tokens, llaves y URLs de webhook. Resultado: 0 hallazgos.
 
-## 5. Qué decidí NO delegarle a la IA y por qué
+## 5. Qué no le delegué a la IA y por qué
 
-- **Las conclusiones de causa raíz:** la IA propone, pero yo decido qué es hecho y qué es hipótesis, porque soy quien responde por el diagnóstico.
-- **Los umbrales de las alertas:** se fijaron probándolos contra los datos (falsas alarmas y tiempo de aviso), no por sugerencia del modelo.
-- **Las salvaguardas de la auto-remediación y del triage** (límite de intentos, cuándo no actuar, catálogo cerrado, aprobación humana): son decisiones de riesgo operativo.
-- **El control antes de cada commit:** reviso `git status` para que no se suban el kit, las notas privadas ni secretos. La revisión de secretos encontró un error de la IA (error 4).
-- **La ejecución de las pruebas en mi equipo** (Pester y pytest): la evidencia debía salir de mi entorno, no de la conversación.
+| Decisión | Por qué la mantuve |
+|---|---|
+| Qué es hecho y qué es hipótesis en la causa raíz | Respondo por el diagnóstico ante la Dirección |
+| Umbrales y severidades de las alertas | Se fijan con datos (falsas alarmas y tiempo de aviso), no por sugerencia del modelo |
+| Salvaguardas de la auto-remediación y del triage | Son decisiones de riesgo operativo: límite de intentos, cuándo no actuar, catálogo cerrado y aprobación humana |
+| Credenciales | Las escribí yo. La IA no las manipula y no quedan en archivos ni en el historial |
+| Revisión antes de cada commit y push | Que no se suban el kit, las notas privadas ni secretos. Así encontré el error 4 |
+| Ejecutar las pruebas en mi equipo | La evidencia debía salir de mi entorno, no de la conversación |
+
+## 6. Controles sobre lo que la IA ejecutó en mi entorno
+
+- Los comandos en Azure se ejecutaron en Cloud Shell con mi cuenta y mi aprobación, y todos se pueden leer en los scripts del repositorio.
+- Cuando la IA intentó transferir los scripts como un paquete codificado (no legible), el control de seguridad lo bloqueó. Los subí yo desde el repositorio.
+- El runbook usa una identidad administrada con permiso solo sobre la app. El URI del webhook (secreto) vive únicamente en Azure.
+- Los recursos de Azure se eliminan al terminar (`az group delete`), con un presupuesto con alerta como red de seguridad.

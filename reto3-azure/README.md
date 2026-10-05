@@ -7,8 +7,10 @@
 ### Cómo reproducirlo (Azure Cloud Shell, bash)
 
 ```bash
+# Opción A: clonar (requiere acceso al repositorio)
 git clone https://github.com/Fabianps19/prueba-observabilidad-portalpagos.git
 cd prueba-observabilidad-portalpagos/reto3-azure && chmod +x *.sh
+# Opción B: subir la carpeta reto3-azure comprimida (Cloud Shell → Administrar archivos → Cargar) y descomprimirla
 EMAIL=tu-correo@dominio.com ./desplegar.sh   # infraestructura, app, monitoreo, remediación y tablero (~10 min)
 source entorno.sh
 ./simular.sh inicio 128      # "despliega" la versión con fuga y genera tráfico de pagos
@@ -17,6 +19,8 @@ source entorno.sh
 ./evidencias.sh              # consultas KQL de evidencia y alertas disparadas
 az group delete -n "$RG" --yes --no-wait   # al terminar (guardar antes las capturas)
 ```
+
+Variables opcionales: `RG`, `LOC` (por defecto `centralus`; cambiarla si la suscripción no tiene cupo para App Service B1 allí) y `LAW`. `desplegar.sh` y `remediacion.sh` se pueden ejecutar más de una vez: reutilizan lo que ya existe.
 
 | Pieza | Qué es | Archivo |
 |---|---|---|
@@ -89,17 +93,20 @@ az group delete -n "$RG" --yes --no-wait   # al terminar (guardar antes las capt
 
 ### Prueba 2: auto-remediación disparada por alerta (runbook con salvaguardas)
 
-Detalle y capturas: `evidencias/RESULTADOS.md` (sección "Prueba 2") y `evidencias/07`–`09`.
+Detalle y capturas: `evidencias/RESULTADOS.md` (sección "Prueba 2"), `evidencias/07`–`09` (runbook) y `evidencias/10`–`12` (tablero).
 
 | Qué se probó | Resultado |
 |---|---|
 | La alerta dispara el runbook sola | **Sí.** De la primera respuesta 5xx a la ejecución del runbook pasaron de 1 a 3 min |
-| Remediación y verificación | **Sí.** En 5 fallas, el runbook reinició y verificó health 200 en 30–60 s. Recuperación total de ~2 a 4 min, frente a 26 min manuales el 18-sep |
+| Remediación y verificación | **Sí.** En cada falla el runbook reinició y verificó health 200 en 30–60 s (11 reinicios en total, según el tablero). Recuperación total de ~2 a 4 min, frente a 26 min manuales el 18-sep |
 | Cuándo no actuar | **Sí.** Con la app sana, cada nueva ejecución de la alerta registró `NO_ACTUA` |
-| Trazabilidad | **Sí.** Cada decisión quedó como `REMEDIACION {json}` en la salida de los jobs |
+| Trazabilidad | **Sí.** Cada decisión quedó como `REMEDIACION {json}` en la salida de los jobs y en el tablero (49 `NO_ACTUA`, 11 `ACTUA`, 11 `RECUPERADO`) |
+| Tablero para Dirección y NOC | **Sí.** Workbook con disponibilidad cada 15 min, decisiones del runbook, 5xx por minuto, p95, memoria y endpoints con error (capturas 10–12) |
 | **Límite de intentos y escalamiento** | **No, todavía.** En Azure el contador se perdía (v1 y v2) y el runbook siguió reiniciando sin escalar. La v3 (historial como texto plano) pasó las pruebas locales; **falta verificarla en Azure con la alerta F**. Es el primer pendiente |
 
-**Pendientes, en orden:** 1) publicar la v3 del runbook y repetir la prueba hasta ver `ESCALAR` y el correo de la alerta F; 2) captura del tablero (Workbook ya desplegado); 3) captura del correo de alerta y del presupuesto; 4) eliminar el grupo de recursos.
+**Observación sobre la métrica de memoria:** en la prueba 2 (128 KB por operación) la memoria de plataforma (`MemoryWorkingSet`) no pasó de ~150 MB, aunque la app fallaba al superar 600 MB de memoria administrada. Hipótesis: los bloques grandes se reservan sin que el sistema operativo los cuente como memoria en uso. Lección: la alerta temprana no debe depender solo de la métrica de plataforma; conviene publicar una métrica propia de la aplicación (tamaño del caché).
+
+**Pendientes, en orden:** 1) desplegar desde cero con `desplegar.sh` (el grupo de recursos se eliminó el 5-oct), publicar la v3 del runbook y repetir la prueba hasta ver `ESCALAR` y el correo de la alerta F; 2) captura del correo de alerta y del presupuesto; 3) eliminar de nuevo el grupo de recursos.
 
 Tiempos en UTC en los logs (Bogotá = UTC-5), igual que en el Reto 1.
 

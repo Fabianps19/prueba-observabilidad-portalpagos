@@ -63,3 +63,7 @@ Los 503 son la app reiniciandose.
 - Deteccion (primer 5xx -> runbook en marcha): 1 a 3 min. Recuperacion automatica (primer 5xx -> health 200): ~2 a 4 min, frente a 26 min manuales el 18-sep.
 - "Cuando no actuar" funciono: con la app sana el runbook no reinicio (decenas de NO_ACTUA registrados).
 - **El limite de intentos no funciono en Azure en ninguna de las dos versiones**, aunque la logica pasaba en pruebas locales: Windows PowerShell 5.1 y la variable de Automation transforman el historial al leerlo (v1: fechas a DateTime; v2: JSON ya deserializado). La v3 guarda texto plano `h:<seg>,<seg>`, se probo localmente con ambos casos y **queda pendiente verificarla en Azure** junto con la alerta F (escalamiento por correo).
+
+## Tablero (Azure Workbook "PortalPagos - Direccion y NOC")
+
+Capturas 10 (Direccion: disponibilidad cada 15 min y decisiones del runbook: 49 NO_ACTUA, 11 ACTUA, 11 RECUPERADO), 11 (NOC: 5xx por minuto y p95) y 12 (NOC: memoria del proceso y endpoints con error: /pagos.aspx, 11.018 respuestas 500). Horas en Bogota.
