@@ -1,0 +1,6 @@
+// ALERTA C (Sev1) - Pool deshabilitado por Rapid-Fail (WAS 5002). Dispara la auto-remediacion (runbook).
+Event
+| where TimeGenerated > ago(5m)
+| where Source == "Microsoft-Windows-WAS" and EventID == 5002
+| extend Pool = extract(@"pool '([^']+)'", 1, RenderedDescription)
+| project TimeGenerated, Computer, Pool, RenderedDescription

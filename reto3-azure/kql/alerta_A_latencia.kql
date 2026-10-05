@@ -1,0 +1,9 @@
+// ALERTA A (Sev2) - Latencia p95 > 2x la linea base durante 15 min, con trafico minimo.
+// Evaluacion cada 5 min, ventana 15 min. Validada en el Reto 1: habria avisado el 18-sep a las 12:00, sin falsas alarmas lun-jue.
+let base_ms = 527.0;   // p95 de una semana normal (Reto 1); en produccion se recalcula semanalmente
+W3CIISLog
+| where TimeGenerated > ago(15m) and csUriStem != "/health"
+| summarize p95_ms = percentile(TimeTaken, 95), peticiones = count() by bin(TimeGenerated, 5m)
+| where peticiones >= 100 and p95_ms > 2 * base_ms
+| summarize ventanas_lentas = count()
+| where ventanas_lentas >= 3

@@ -1,0 +1,10 @@
+// Eventos que explican fallas del pool y de la aplicacion (sin ruido DCOM 10016, Schannel 36887, SCM 7036).
+Event
+| where TimeGenerated > ago(7d)
+| where (Source == "Microsoft-Windows-WAS" and EventID in (5002, 5009, 5010, 5011, 5013))
+     or (Source == ".NET Runtime" and EventID == 1026)
+     or (Source == "Application Error" and EventID == 1000)
+     or (Source startswith "ASP.NET" and EventID == 1309)
+     or (Source == "srv" and EventID == 2013)
+| project TimeGenerated, Computer, Source, EventID, EventLevelName, Resumen = substring(RenderedDescription, 0, 200)
+| order by TimeGenerated desc

@@ -4,14 +4,21 @@
 
 | Herramienta / modelo | Para qué la usé |
 |---|---|
-| Claude (claude.ai) | Análisis exploratorio del kit, planeación, revisión de código |
-| _(completar)_ | |
+| Claude (Anthropic), en conversación con acceso a archivos | Lectura del enunciado y del kit, análisis exploratorio, borradores de código (Python, PowerShell, KQL), redacción del post-mortem y revisión de cifras |
+| GitHub Models (`openai/gpt-4.1-mini`), opcional | Modelo que consume el componente de triage del Reto 4 en ejecución real |
+| Proveedor simulado (respuestas grabadas) | Pruebas deterministas del Reto 4, incluyendo respuestas erróneas a propósito |
 
 ## 2. Prompts clave (5 a 10)
 
 | # | Prompt (resumen) | Qué respondió la IA (resumen) | Qué hice con eso |
 |---|---|---|---|
-| 1 | _(completar)_ | | |
+| 1 | "Analiza el adjunto" (enunciado de la prueba) | Resumen de lo que evalúan, trampas probables del kit (UTC, 503 solo en HTTP.sys, duplicados) y plan por días | Lo usé para priorizar; las trampas las verifiqué una por una con el kit |
+| 2 | "Este es el kit" (zip) | Hallazgos: duplicado por hash, `#Fields` que cambia, OOM en `SesionPagoCache`, despliegue del 15-sep, disco y DCOM como pista falsa | Base del diagnóstico; corregí el supuesto de abandono de clientes (error 2) |
+| 3 | "¿Hay forma de llevar el análisis a un siguiente nivel?" | Correlación memoria-pagos (0,993), reintentos de confirmación, detección simulada con reglas de alerta | Lo incorporé al script; la IA tuvo que corregir la hora de las alertas (al cierre de la ventana) |
+| 4 | "Realiza una última revisión: que todo lo que se suministra sea cierto" | Recalculó las cifras con un script independiente y encontró pagos fallidos subestimados (141 → 250) | Corregí el post-mortem y agregué causas descartadas con datos |
+| 5 | "El post-mortem debe ser de 3 hojas" | Versión condensada verificada con un PDF A4 real (3 páginas) | Acepté; revisé que no se perdieran cifras clave |
+| 6 | Siguiente paso: script PowerShell del Reto 2 | Módulo con `-WhatIf`, log JSON, códigos de salida y pruebas Pester | Detecté que el `-WhatIf` borraba archivos (error 3) y corrí las 15 pruebas en mi Windows |
+| 7 | Siguiente paso: triage con IA del Reto 4 | Esquema, catálogo cerrado, validación de citas, respaldo y casos de prueba (incluido uno de inyección en un log) | Revisé cada caso; el de inyección lo puedo defender desde mi especialización en seguridad |
 
 ## 3. Situaciones en que la IA se equivocó o propuso algo riesgoso (mínimo 3)
 
@@ -31,4 +38,8 @@
 
 ## 5. Qué decidí NO delegarle a la IA y por qué
 
-- _(completar)_
+- **Las conclusiones de causa raíz:** la IA propone, pero yo decido qué es hecho y qué es hipótesis, porque soy quien responde por el diagnóstico.
+- **Los umbrales de las alertas:** se fijaron probándolos contra los datos (falsas alarmas y tiempo de aviso), no por sugerencia del modelo.
+- **Las salvaguardas de la auto-remediación y del triage** (límite de intentos, cuándo no actuar, catálogo cerrado, aprobación humana): son decisiones de riesgo operativo.
+- **El control antes de cada commit:** reviso `git status` para que no se suban el kit, las notas privadas ni secretos. La revisión de secretos encontró un error de la IA (error 4).
+- **La ejecución de las pruebas en mi equipo** (Pester y pytest): la evidencia debía salir de mi entorno, no de la conversación.

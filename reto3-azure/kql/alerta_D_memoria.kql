@@ -1,0 +1,6 @@
+// ALERTA D (Sev3, ticket) - Memoria del proceso del portal > 1 GB. Validada en el Reto 1: habria avisado el mie 16-sep 18:40.
+Perf
+| where TimeGenerated > ago(15m)
+| where ObjectName == "Process" and CounterName == "Private Bytes" and InstanceName startswith "w3wp"
+| summarize memoria_mb = max(CounterValue) / 1048576.0 by Computer
+| where memoria_mb > 1000

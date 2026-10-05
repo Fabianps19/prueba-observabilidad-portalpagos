@@ -1,0 +1,15 @@
+// Disponibilidad real del portal por hora: peticiones de clientes sin error de servidor.
+// Incluye los 503 de HTTP.sys (tabla personalizada HttpErr_CL), que W3CIISLog NO registra cuando el pool esta apagado.
+let ventana = 7d;
+let iis = W3CIISLog
+    | where TimeGenerated > ago(ventana)
+    | where csUriStem != "/health" and scStatus != "404"
+    | project TimeGenerated, fallo = toint(scStatus) >= 500;
+let httpsys = HttpErr_CL
+    | where TimeGenerated > ago(ventana)
+    | where StatusCode == "503" and not(Uri startswith "/health")
+    | project TimeGenerated, fallo = true;
+union iis, httpsys
+| summarize total = count(), fallidas = countif(fallo) by bin(TimeGenerated, 1h)
+| extend disponibilidad_pct = round(100.0 * (total - fallidas) / total, 2)
+| order by TimeGenerated asc

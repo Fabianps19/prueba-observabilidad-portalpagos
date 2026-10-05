@@ -1,0 +1,9 @@
+// Tasa de errores cada 5 minutos y endpoints mas afectados.
+W3CIISLog
+| where TimeGenerated > ago(24h)
+| where csUriStem != "/health"
+| summarize total = count(), errores_5xx = countif(toint(scStatus) >= 500),
+            top_endpoints = make_set_if(csUriStem, toint(scStatus) >= 500, 5)
+    by bin(TimeGenerated, 5m)
+| extend tasa_error_pct = round(100.0 * errores_5xx / total, 1)
+| order by TimeGenerated asc

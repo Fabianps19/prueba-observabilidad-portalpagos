@@ -1,0 +1,10 @@
+// Latencia p95 cada 5 minutos frente a la linea base de los ultimos 7 dias (misma metrica que el Reto 1).
+let base = toscalar(
+    W3CIISLog
+    | where TimeGenerated between (ago(7d) .. ago(1d)) and csUriStem != "/health"
+    | summarize percentile(TimeTaken, 95));
+W3CIISLog
+| where TimeGenerated > ago(24h) and csUriStem != "/health"
+| summarize p95_ms = percentile(TimeTaken, 95), peticiones = count() by bin(TimeGenerated, 5m)
+| extend linea_base_ms = base, veces_base = round(p95_ms / base, 2)
+| order by TimeGenerated asc

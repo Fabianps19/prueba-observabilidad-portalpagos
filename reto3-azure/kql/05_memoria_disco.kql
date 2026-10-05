@@ -1,0 +1,9 @@
+// Memoria del proceso del portal y espacio en disco (senales tempranas del Reto 1).
+Perf
+| where TimeGenerated > ago(7d)
+| where (ObjectName == "Process" and CounterName == "Private Bytes" and InstanceName startswith "w3wp")
+     or (ObjectName == "LogicalDisk" and CounterName == "% Free Space" and InstanceName == "C:")
+| extend serie = iff(ObjectName == "Process", "w3wp_MB", "disco_C_libre_pct"),
+         valor = iff(ObjectName == "Process", CounterValue / 1048576.0, CounterValue)
+| summarize max(valor) by serie, bin(TimeGenerated, 15m)
+| render timechart

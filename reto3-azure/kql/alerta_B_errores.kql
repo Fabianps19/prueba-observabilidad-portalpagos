@@ -1,0 +1,7 @@
+// ALERTA B (Sev1) - Errores de servidor (5xx de IIS + 503 de HTTP.sys) > 5 % en 5 min, con >= 50 peticiones.
+let iis = W3CIISLog | where TimeGenerated > ago(5m) and csUriStem != "/health" | project fallo = toint(scStatus) >= 500;
+let httpsys = HttpErr_CL | where TimeGenerated > ago(5m) and StatusCode == "503" | project fallo = true;
+union iis, httpsys
+| summarize total = count(), fallidas = countif(fallo)
+| extend tasa_pct = 100.0 * fallidas / total
+| where total >= 50 and tasa_pct > 5
