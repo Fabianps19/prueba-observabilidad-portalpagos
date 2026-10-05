@@ -1,0 +1,28 @@
+// Reto 3 - Consultas usadas como evidencia en el laboratorio de App Service (5-oct-2026).
+// Tiempos en UTC (Bogota = UTC-5).
+
+// 1) Disponibilidad por minuto en los minutos con errores (logs W3C de IIS de App Service)
+AppServiceHTTPLogs
+| where TimeGenerated > ago(3h) and CsUriStem has "pagos"
+| summarize total = count(), err = countif(ScStatus >= 500) by minuto = bin(TimeGenerated, 1m)
+| where err > 0
+| extend disponibilidad = round(100.0 * (total - err) / total, 2)
+| order by minuto asc;
+
+// 2) Disponibilidad total de la prueba
+AppServiceHTTPLogs
+| where TimeGenerated > ago(3h) and CsUriStem has "pagos"
+| summarize total = count(), err = countif(ScStatus >= 500)
+| extend disponibilidad = round(100.0 * (total - err) / total, 3);
+
+// 3) Memoria del proceso (senal temprana de la fuga)
+AzureMetrics
+| where TimeGenerated > ago(3h) and MetricName == "MemoryWorkingSet"
+| summarize mb = round(max(Maximum) / 1048576, 0) by t = bin(TimeGenerated, 2m)
+| order by t asc;
+
+// 4) Regla de la alerta D (log search): tasa de error > 5 % con volumen minimo
+AppServiceHTTPLogs
+| summarize total = count(), errores = countif(ScStatus >= 500)
+| extend pct = round(100.0 * errores / total, 1)
+| where total >= 50 and pct > 5

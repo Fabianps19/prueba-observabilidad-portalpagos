@@ -1,7 +1,99 @@
-# Reto 3 · Observabilidad y auto-remediación en Azure (diseño)
+# Reto 3 · Observabilidad y auto-remediación en Azure
 
-> **Estado honesto:** por tiempo, este reto se entrega como **diseño detallado y artefactos listos para desplegar** (consultas KQL, reglas de alerta y runbook), no como un entorno montado con capturas. Prioricé entregar bien probados los Retos 1, 2 y 4, como pide la prueba. Lo que sí está validado: **los umbrales de las alertas se probaron contra los datos reales del kit** (Reto 1, `analisis_avanzado.md`). La suscripción de Azure y el presupuesto con alerta (USD 10, avisos al 50 % y 90 %) quedaron creados.
+> **Estado:** desplegado y probado en Azure el **5-oct-2026** (sección 0), con una adaptación: la suscripción de prueba **no permitió crear la VM** (cuota 0 en familias nuevas y "sin capacidad" en B2s, B2ms, A2_v2 y D2_v2 en eastus2 y centralus; ver `evidencias/00_vm_sin_capacidad.jpg`). Por eso el laboratorio corre en **Azure App Service Windows (IIS administrado)** con una app que reproduce la fuga de `SesionPagoCache`. Las secciones 1–9 son el **diseño objetivo para la VM IIS real** de Andina; lo probado en App Service valida el ciclo completo señal → alerta → correo → auto-remediación → verificación.
 
+## 0. Lo que se desplegó y midió (5-oct-2026)
+
+### Cómo reproducirlo (Azure Cloud Shell, bash)
+
+```bash
+git clone https://github.com/Fabianps19/prueba-observabilidad-portalpagos.git
+cd prueba-observabilidad-portalpagos/reto3-azure && chmod +x *.sh
+EMAIL=tu-correo@dominio.com ./desplegar.sh   # infraestructura, app, monitoreo, remediación y tablero (~10 min)
+source entorno.sh
+./simular.sh inicio 128      # "despliega" la versión con fuga y genera tráfico de pagos
+./carga.sh resumen $(ls -t carga_*.csv | head -1)   # avance; esperar los ciclos de falla
+./simular.sh rollback        # vuelve a la versión sana
+./evidencias.sh              # consultas KQL de evidencia y alertas disparadas
+az group delete -n "$RG" --yes --no-wait   # al terminar (guardar antes las capturas)
+```
+
+| Pieza | Qué es | Archivo |
+|---|---|---|
+| Despliegue | Grupo de recursos, Log Analytics, App Service Windows B1 (IIS administrado) y la app; llama a los tres scripts siguientes | `desplegar.sh` |
+| App simulada | `pagos.aspx` retiene `FUGA_KB` por operación (0 = sana; con fuga, como la v2.3.1). Al pasar `LIMITE_MB` (600) lanza `OutOfMemoryException` en `SesionPagoCache.Agregar` y **sigue fallando** hasta que alguien reinicie, como el pool del 18-sep. `salud.aspx` = health check | `app/` |
+| Monitoreo | Diagnostic settings → Log Analytics (`AppServiceHTTPLogs` = logs W3C de IIS, `AppServicePlatformLogs`, `AppServiceAppLogs`, métricas); Action Group con correo; alertas A–D; Auto-Heal opcional (`AUTOHEAL=true`) | `monitoreo.sh` |
+| **Auto-remediación** | Alerta **E** (KQL, sin estado, cada minuto) → Action Group → webhook → runbook de Azure Automation con identidad administrada | `remediacion.sh`, `remediacion/Remediar-PortalPagos.ps1` |
+| Tablero | Azure Workbook con una sección para la Dirección y otra para el NOC | `tablero.sh`, `tablero/workbook.py` |
+| Falla y evidencia | Tráfico de pagos a ~17 req/s registrado en CSV; consultas KQL (disponibilidad, 5xx, p95, memoria, reinicios, decisiones del runbook) | `simular.sh`, `carga.sh`, `evidencias.sh`, `kql/06_app_service_prueba.kql` |
+
+**Punto 11 en App Service (justificación):** logs de IIS → `AppServiceHTTPLogs` (W3C: estado, URI, `TimeTaken`); eventos de Windows → no se exponen en App Service, se usan `AppServicePlatformLogs` y el registro de actividad (reinicios, cambios de configuración); contadores de rendimiento → métricas de plataforma (`MemoryWorkingSet`, `CpuTime`, `Http5xx`, `HealthCheckStatus`) en `AzureMetrics`. En la VM real sería AMA + DCR (sección 2).
+
+**Alertas** (todas con correo, salvo E que llama al runbook):
+
+| Alerta | Regla | Sev | Para qué |
+|---|---|---|---|
+| A. Memoria temprana | Memoria del proceso > 250 MB (máx. en 5 min, cada 1 min) | 2 | Ver venir la fuga antes de que falle (en el kit: 16-sep 18:40) |
+| B. Errores 5xx | > 20 respuestas 5xx en 5 min (métrica) | 1 | Avisar a una persona de una falla, aunque sea corta |
+| C. Health check | `HealthCheckStatus` < 100 % | 1 | Falla sostenida vista desde afuera |
+| D. Tasa de error | > 5 % de errores con ≥ 50 peticiones en 5 min (KQL) | 1 | Degradación sostenida |
+| **E. Remediación** | ≥ 20 respuestas 5xx en 5 min (KQL, **sin estado**: reevalúa cada minuto) | 1 | **Dispara el runbook** |
+| F. Escalamiento | El runbook escribió `ESCALAR` | 1 | Una persona debe intervenir |
+
+**Salvaguardas del runbook** (`Remediar-PortalPagos.ps1`):
+
+| Salvaguarda | Cómo |
+|---|---|
+| Solo el caso previsto | Regla `E-remediacion-5xx` en estado *Fired* y solo la app de la variable `AppPermitida` |
+| Cuándo **no** actuar | Etiqueta `ventana-mantenimiento=true`; el health check ya responde 200; hubo un reinicio hace < 5 min (enfriamiento: la alerta sin estado se repite cada minuto) |
+| Límite de intentos | Máximo **2 reinicios en 60 min** (`MaxReiniciosHora`); al tercero **no reinicia y escala**, porque la falla que vuelve no se arregla reiniciando |
+| Modo sugerir | `ModoRemediacion=sugerir` registra la acción sin ejecutarla. En producción empezaría así 30 días (Reto 5); en el laboratorio corre en `automatico` |
+| Verificación | Tras reiniciar prueba `/salud.aspx` cada 15 s hasta 2 min; si no se recupera, escala |
+| Escalar a una persona | El job termina en error con `ESCALAR`; la alerta F envía el correo |
+| Trazabilidad | Cada decisión queda como `REMEDIACION {json}` en JobStreams (Log Analytics), en la bitácora del tablero y en el registro de actividad (reinicios) |
+| Mínimo privilegio y sin secretos | Identidad administrada con *Website Contributor* solo sobre la app; solo REST, sin credenciales. El URI del webhook (secreto) vive únicamente en el Action Group |
+
+### Prueba 1: Auto-Heal (primera línea, sin runbook)
+
+#### Línea de tiempo (hora Bogotá)
+
+| Hora | Hecho |
+|---|---|
+| 10:45:00 | "Despliegue" de la v2.3.1 con fuga (`FUGA_KB=64`) e inicio de la carga |
+| ~10:49 | La memoria supera 250 MB (métrica: 242 MB a las 10:48, 373 MB a las 10:50) |
+| **10:52:57** | **Alerta A (memoria) disparada y correo enviado — 1 min 55 s antes del primer error** |
+| 10:54:52–10:54:54 | Memoria > 600 MB: 30 respuestas 500 y 4 conexiones fallidas |
+| **10:54:54** | **Auto-Heal recicla el proceso; vuelve a responder 200 (≈ 2 s de falla)** |
+| **10:59:04** | **Alerta B (5xx) disparada** — 4 min 12 s después del primer error |
+| 11:04:25–11:04:34 | La fuga sigue (la causa no se corrigió): segundo ciclo, 112 respuestas 500, Auto-Heal recupera en ≈ 10 s |
+| 11:05:37 | "Rollback" a la versión sana (`FUGA_KB=0`) |
+| 11:08:16 | Alerta B dispara por el segundo ciclo (3 min 51 s después del error) |
+| 11:05–11:10 | Sin errores hasta el fin de la carga (11:10:57) |
+
+#### Resultados
+
+| Métrica | 18-sep (incidente) | Laboratorio |
+|---|---|---|
+| Aviso temprano antes de la falla | Ninguno | Alerta A, ~2 min antes (en producción, con la fuga real de ~0,25 MB/op, serían ~2 días: 16-sep 18:40) |
+| Detección de la falla (MTTD) | 4 min por ticket de cliente (2 h 14 min de la degradación) | 3 min 51 s – 4 min 12 s por alerta B, sin depender del cliente |
+| Recuperación (MTTR) | 26 min, manual | **≈ 2 s y ≈ 10 s, automática** |
+| Peticiones fallidas | 1.985 | 146 de 25.585 (142 HTTP 500 + 4 sin conexión) |
+| Disponibilidad | 94,476 % el viernes | 99,43 % (cliente) / 99,388 % (logs IIS en Log Analytics) |
+
+#### Lo que no funcionó como esperaba (y por qué)
+
+- **La alerta D (tasa de error > 5 %) no se disparó.** Las fallas duraron segundos: en la ventana de 5 min la tasa quedó en ~0,6 % y ~2 %. Es la misma trampa del NOC: un promedio largo esconde ráfagas cortas. Por eso la alerta B usa un **conteo absoluto** de 5xx, y fue la que avisó. En producción mantendría ambas: B para ráfagas, D para degradación sostenida.
+- **La alerta C (health check) tampoco se disparó.** El health check se evalúa cada minuto y la app se recuperó antes. No es un error: significa que la auto-remediación fue más rápida que el chequeo.
+- **La alerta B llega en ~4 min** por la latencia de las métricas de plataforma más la ventana de evaluación. La recuperación ya había ocurrido; la alerta sirve de **registro y aviso**, no de disparador. Si la auto-remediación fallara, la B sigue avisando a una persona.
+- **Auto-Heal mitiga, no corrige, y no cumple el punto 14:** lo dispara su propia regla (no una alerta), no tiene límite de intentos ni escala a una persona. 10 minutos después la fuga volvió a tumbar la app y solo el rollback la detuvo. Por eso la remediación oficial es el runbook disparado por la alerta E (prueba 2), con límite de 2 reinicios por hora y escalamiento.
+
+### Prueba 2: auto-remediación disparada por alerta (runbook con salvaguardas)
+
+Resultados, tiempos de detección y recuperación y capturas: `evidencias/RESULTADOS.md` (sección "Prueba 2").
+
+Tiempos en UTC en los logs (Bogotá = UTC-5), igual que en el Reto 1.
+
+**Costo del laboratorio:** App Service B1 (~USD 0,075/h), Log Analytics dentro de los 5 GB gratuitos, Automation dentro de los 500 min gratuitos, 6 reglas de alerta (céntimos). Unas horas de laboratorio: < USD 1. El grupo de recursos se elimina al terminar (`az group delete`). **IaC:** el despliegue es repetible con scripts de Azure CLI; pasarlo a Bicep es el siguiente paso.
 ## 1. Arquitectura
 
 ```mermaid
@@ -46,6 +138,7 @@ Se elige AMA + DCR porque el agente anterior (MMA) fue retirado y la DCR permite
 | `03_latencia_p95.kql` | p95 frente a la línea base de 7 días |
 | `04_eventos_pool.kql` | Eventos del pool y de la aplicación, sin el ruido (DCOM, Schannel, SCM) |
 | `05_memoria_disco.kql` | Memoria de w3wp y disco libre (señales tempranas) |
+| `06_app_service_prueba.kql` y `../evidencias.sh` | **Ejecutadas sobre los datos del laboratorio:** disponibilidad, 5xx por endpoint, p95, memoria, reinicios y decisiones del runbook |
 
 ## 4. Alertas
 
@@ -74,7 +167,7 @@ Escenario: **el pool se detiene** (alerta C). Herramienta: runbook de Azure Auto
 | Escalamiento a una persona | Mensaje al canal del NOC con los datos del intento |
 | Trazabilidad | Cada decisión se registra en JSON en la salida del job, enviada a Log Analytics (`AzureDiagnostics`, `JobStreams`) |
 
-El código pasa el analizador sintáctico de PowerShell, pero **no se ejecutó en Azure**.
+El código pasa el analizador sintáctico de PowerShell, pero **no se ejecutó en Azure** (sin VM, ver sección 0). En el laboratorio, la auto-remediación equivalente se probó con Auto-Heal.
 
 **Importante:** reiniciar el pool solo devuelve el servicio. La causa (la fuga) la corrige desarrollo; por eso la alerta D abre un ticket y el triage del Reto 4 sugiere RB-04 (escalar a desarrollo).
 
@@ -87,7 +180,7 @@ El código pasa el analizador sintáctico de PowerShell, pero **no se ejecutó e
 | % de incidentes detectados antes que el cliente | Alertas activas y resultado de la última auto-remediación |
 | Tendencia semanal en lenguaje de negocio | Eventos clave sin ruido y enlace a las consultas KQL |
 
-## 7. Tiempos esperados de detección y recuperación (estimados, no medidos)
+## 7. Tiempos esperados de detección y recuperación en la VM (estimados; los medidos en App Service están en la sección 0)
 
 | Escenario | Hoy (18-sep) | Con este diseño (estimado) |
 |---|---|---|

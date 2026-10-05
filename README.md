@@ -8,7 +8,7 @@ Caso ficticio **PortalPagos** (Andina Financiera): diagnóstico del incidente de
 |---|---|
 | `reto1-diagnostico/` | Código reproducible del análisis de logs y post-mortem |
 | `reto2-powershell/` | Problemas del .BAT, script PowerShell de reemplazo y pruebas Pester |
-| `reto3-azure/` | Diseño de observabilidad, consultas KQL, alertas y auto-remediación |
+| `reto3-azure/` | Observabilidad y auto-remediación desplegadas en Azure, consultas KQL, alertas y runbook |
 | `reto4-triage-ia/` | Componente de triage de incidentes con IA |
 | `reto5-propuesta/` | Propuesta para los primeros 90 días |
 | `evidencias/` | Capturas y salidas de ejecución |
@@ -20,13 +20,13 @@ Caso ficticio **PortalPagos** (Andina Financiera): diagnóstico del incidente de
 |---|---|---|
 | 1. Diagnóstico | Código reproducible, `POSTMORTEM.md`/`.pdf` (3 págs.), análisis avanzado, presentación HTML, guía de validación en Power BI | `cd reto1-diagnostico` → `python -m pip install -r requirements.txt` → `python analizar.py --kit ../kit --salida resultados` → `python -m pytest -q tests` |
 | 2. PowerShell | `PROBLEMAS.md`, script de reemplazo, 15 pruebas Pester, demo con evidencia | `cd reto2-powershell` → `.\demo-local.ps1` → `Invoke-Pester -Path .\tests` |
-| 3. Azure | **Diseño** con consultas KQL, reglas de alerta validadas con datos del kit y runbook de auto-remediación con salvaguardas. **No desplegado por tiempo** (ver su README) | Revisar `reto3-azure/README.md` |
+| 3. Azure | **Desplegado y probado** en App Service Windows (la suscripción de prueba no permitió crear la VM): logs IIS → Log Analytics, alertas con correo, **auto-remediación disparada por alerta** (runbook de Automation con límite de intentos, cuándo no actuar y escalamiento), tablero para Dirección y NOC, falla provocada con MTTD/MTTR medidos y costo. Más el diseño objetivo para la VM | `reto3-azure/README.md` sección 0: `EMAIL=... ./desplegar.sh` en Azure Cloud Shell |
 | 4. Triage con IA | Componente con esquema JSON, catálogo cerrado de runbooks, validación de citas, respaldo sin IA y 6 pruebas | `cd reto4-triage-ia` → `python -m pip install -r requirements.txt` → `python -m pytest -q tests` → `python ejecutar_casos.py` |
 | 5. Propuesta 90 días | `PROPUESTA_90_DIAS.md`/`.pdf` (2 págs.) | — |
 
 ## Cómo reproducir
 
-> Requisitos: Python 3.12, PowerShell 5.1 o 7 (Pester 5+), Git.
+> Requisitos: Python 3.12, PowerShell 5.1 o 7 (Pester 5+), Git. Reto 3: una suscripción de Azure y Azure Cloud Shell (bash).
 
 1. Clonar este repositorio.
 2. Descomprimir `kit_prueba_portalpagos.zip` dentro de una carpeta `kit/` en la raíz del repositorio.
@@ -35,7 +35,7 @@ Caso ficticio **PortalPagos** (Andina Financiera): diagnóstico del incidente de
 
 ## Prioridades y decisiones
 
-La prueba indica que es mejor entregar menos cosas bien hechas y probadas. Con el tiempo disponible prioricé: 1) el diagnóstico con evidencia, 2) el script de mantenimiento con pruebas, 3) el triage con IA, y entregué el Reto 3 como diseño detallado en vez de un montaje a medias. Si tuviera más tiempo, en este orden: desplegar el Reto 3 con Bicep, medir detección y recuperación reales con un video, y conectar el triage (Reto 4) a la alerta real.
+La prueba indica que es mejor entregar menos cosas bien hechas y probadas. Con el tiempo disponible prioricé: 1) el diagnóstico con evidencia, 2) el script de mantenimiento con pruebas, 3) el triage con IA, y por último el Reto 3, desplegado en App Service porque la suscripción de prueba no permitió la VM. Si tuviera más tiempo, en este orden: llevar el Reto 3 a una VM IIS real con AMA/DCR y el runbook, escribirlo en Bicep, y conectar el triage (Reto 4) a la alerta real.
 
 ## Supuestos
 
@@ -52,6 +52,9 @@ _Se documentan a medida que se toman decisiones sin información completa._
 
 9. Reto 2: la tarea programada correrá con una cuenta de servicio administrada (gMSA) con permiso de escritura en el share de auditoría; por eso el script no maneja credenciales.
 10. Reto 4: los logs se tratan como datos no confiables; los datos personales (IPs, números largos) se enmascaran antes de enviarse al modelo.
+11. Reto 3: la suscripción gratuita no permitió crear la VM (cuota 0 o sin capacidad en todas las familias probadas). Se usa **App Service Windows**, que también corre sobre IIS; "pool detenido" se modela como la app que responde 500 hasta que alguien la reinicie.
+12. Reto 3: la fuga se acelera (64–128 KB por operación en lugar de ~0,25 MB con 1,5 GB de memoria) y los umbrales se escalan (250 MB, 600 MB) para ver en minutos lo que en producción tomó días. Las tasas y tiempos medidos se refieren al laboratorio.
+13. Reto 3: el runbook corre en modo `automatico` para la demostración; en producción empezaría en modo `sugerir` (Reto 5).
 
 ## Seguridad
 

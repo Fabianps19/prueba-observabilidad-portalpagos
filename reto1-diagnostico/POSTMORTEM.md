@@ -36,6 +36,8 @@ El viernes 18, último día de plazo de pago, el portal se puso lento desde las 
 | **14:38** | IIS apaga el pool por fallas repetidas | "Service Unavailable" (T-10255) | WAS 5002, HTTP.sys |
 | **15:04** | Reinicio manual del pool | Servicio normal | Último 503: 15:03:59 |
 
+_Fuentes (carpeta `kit/`): IIS = `logs/iis/W3SVC2/u_ex260915.log` a `u_ex260918.log`; HTTP.sys = `logs/httperr/httperr1.log`; eventos (AndinaDeploy, ASP.NET, .NET, WAS) = `eventos/eventos_WEB-PAGOS-01.csv`; memoria y disco = `metricas/perfmon_WEB-PAGOS-01.csv`; tickets = `tickets/tickets_mesa_servicio.csv`. Cada hora sale de `analizar.py` (funciones `hitos`, `linea_tiempo` y `eventos_clave`) y queda en `resultados/`._
+
 ![Incidente del 18 de septiembre](resultados/incidente_18sep.png)
 
 ## 4. Causa raíz
