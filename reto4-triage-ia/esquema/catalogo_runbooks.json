@@ -1,8 +1,8 @@
 {
-  "RB-01": {"nombre": "Reciclar el pool de aplicaciones", "cuando": "Pool en ejecucion con memoria alta o degradacion; no si se recicla en bucle"},
-  "RB-02": {"nombre": "Iniciar pool detenido (Rapid-Fail)", "cuando": "Pool deshabilitado por WAS 5002; maximo 2 intentos por hora y luego escalar"},
+  "RB-01": {"nombre": "Reciclar el pool de aplicaciones", "cuando": "Pool en ejecución con memoria alta o degradación; no si se recicla en bucle"},
+  "RB-02": {"nombre": "Iniciar pool detenido (Rapid-Fail)", "cuando": "Pool deshabilitado por WAS 5002; máximo 2 intentos por hora y luego escalar"},
   "RB-03": {"nombre": "Liberar espacio en disco (preservando volcados)", "cuando": "Disco C: por debajo del umbral"},
-  "RB-04": {"nombre": "Escalar a desarrollo / evaluar rollback del ultimo despliegue", "cuando": "Errores de aplicacion (excepciones) que empezaron tras un despliegue"},
+  "RB-04": {"nombre": "Escalar a desarrollo / evaluar rollback del último despliegue", "cuando": "Errores de aplicación (excepciones) que empezaron tras un despliegue"},
   "RB-05": {"nombre": "Escalar a infraestructura", "cuando": "Problema de servidor, red, proxy o servicio de Windows"},
   "RB-06": {"nombre": "Observar sin accion", "cuando": "Evidencia insuficiente o alerta transitoria"}
 }

@@ -1,13 +1,13 @@
 {
   "resumen": {
-    "que_esta_pasando": "Resumen generado SIN IA por reglas fijas (intento 1: proveedor: TimeoutError: el modelo no respondio a tiempo (simulado)). ALERTA PortalPagos-5xx-alto (Sev1): Tasa de 5xx > 5% en 5 minutos; valor 23.4 (umbral 5); disparada 2026-09-18 14:00 hora Colombia (2026-09-18T19:00:00.000Z UTC)",
+    "que_esta_pasando": "Resumen generado SIN IA por reglas fijas (intento 1: proveedor: TimeoutError: el modelo no respondió a tiempo (simulado)). ALERTA PortalPagos-5xx-alto (Sev1): Tasa de 5xx > 5% en 5 minutos; valor 23.4 (umbral 5); disparada 2026-09-18 14:00 hora Colombia (2026-09-18T19:00:00.000Z UTC)",
     "impacto": {
       "descripcion": "No evaluado por la IA; revisar la evidencia adjunta.",
       "severidad": "alta"
     },
     "hipotesis": [
       {
-        "descripcion": "Errores por falta de memoria en la aplicacion.",
+        "descripcion": "Errores por falta de memoria en la aplicación.",
         "probabilidad": "media",
         "evidencia": [
           {
@@ -19,11 +19,11 @@
     ],
     "accion_sugerida": {
       "runbook": "RB-04",
-      "justificacion": "Regla de respaldo: requiere confirmacion de una persona."
+      "justificacion": "Regla de respaldo: requiere confirmación de una persona."
     },
     "confianza": "baja",
     "datos_faltantes": [
-      "Analisis de IA no disponible: intento 1: proveedor: TimeoutError: el modelo no respondio a tiempo (simulado)",
+      "Análisis de IA no disponible: intento 1: proveedor: TimeoutError: el modelo no respondió a tiempo (simulado)",
       "Revisar despliegue reciente: E12"
     ]
   },
@@ -34,14 +34,14 @@
     "latencia_ms": 0,
     "estado": "respaldo_sin_ia",
     "errores_formato": [
-      "intento 1: proveedor: TimeoutError: el modelo no respondio a tiempo (simulado)"
+      "intento 1: proveedor: TimeoutError: el modelo no respondió a tiempo (simulado)"
     ],
     "problemas_contenido": [],
     "inyeccion_detectada": [],
     "requiere_aprobacion_humana": true,
     "ejecuta_acciones": false,
     "alerta_id": "7f1c2b3a-0000-0000-0000-000000000001",
-    "generado": "2026-10-05T04:29:16+00:00"
+    "generado": "2026-10-06T14:41:54+00:00"
   },
   "contexto": {
     "alerta_local": "2026-09-18 14:00",

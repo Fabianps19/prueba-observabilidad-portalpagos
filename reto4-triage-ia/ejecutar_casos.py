@@ -14,6 +14,7 @@ CASOS = {
     "caso3_json_invalido_reintento": ("invalido_luego_ok", None),
     "caso4_timeout_respaldo": ("timeout", None),
     "caso5_inyeccion_en_log": ("inyeccion", [INYECCION]),
+    "caso6_respuesta_en_ingles_reintento": ("ingles_luego_espanol", None),
 }
 SALIDA.mkdir(parents=True, exist_ok=True)
 for nombre, (fixture, extra) in CASOS.items():

@@ -51,14 +51,14 @@
     "latencia_ms": 1,
     "estado": "ok",
     "errores_formato": [
-      "intento 1: JSON inválido: Expecting value (pos 0)"
+      "intento 1: La respuesta no está en español (40 palabras frecuentes en inglés frente a 0 en español). Escribe todos los campos de texto en español; las citas se copian literalmente"
     ],
     "problemas_contenido": [],
     "inyeccion_detectada": [],
     "requiere_aprobacion_humana": true,
     "ejecuta_acciones": false,
     "alerta_id": "7f1c2b3a-0000-0000-0000-000000000001",
-    "generado": "2026-10-06T14:41:51+00:00"
+    "generado": "2026-10-06T14:41:58+00:00"
   },
   "contexto": {
     "alerta_local": "2026-09-18 14:00",

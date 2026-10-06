@@ -1,5 +1,49 @@
 [
- "Claro, aqui esta el analisis del incidente: {\"que_esta_pasando\": \"el portal",
+ {
+  "que_esta_pasando": "Since 13:30 the portal is very slow (p95 of 20 to 27 s) and between 13 % and 20 % of the requests fail with error 500, mostly when starting and confirming payments.",
+  "impacto": {
+   "descripcion": "Customers are not able to start or confirm payments on the last day of the deadline; about 180 requests every 5 minutes are affected.",
+   "severidad": "critica"
+  },
+  "hipotesis": [
+   {
+    "descripcion": "The application is running out of memory; the error is in the payment session cache that was introduced with v2.3.1.",
+    "probabilidad": "alta",
+    "evidencia": [
+     {
+      "id": "E11",
+      "cita": "OutOfMemoryException"
+     },
+     {
+      "id": "E12",
+      "cita": "cache de sesiones de pago"
+     },
+     {
+      "id": "E14",
+      "cita": "1372 MB -> 1439 MB"
+     }
+    ]
+   },
+   {
+    "descripcion": "The problem mainly affects the payment flow.",
+    "probabilidad": "media",
+    "evidencia": [
+     {
+      "id": "E10",
+      "cita": "/api/pagos/confirmar=64"
+     }
+    ]
+   }
+  ],
+  "accion_sugerida": {
+   "runbook": "RB-04",
+   "justificacion": "Memory exceptions in a new component of the 15-sep deployment: escalate to development and evaluate a rollback."
+  },
+  "confianza": "alta",
+  "datos_faltantes": [
+   "The alert reports 23.4 % but the recalculation from the logs gives 12.8 % (E02): review the alert query."
+  ]
+ },
  {
   "que_esta_pasando": "Desde las 13:30 el portal responde muy lento (p95 de 20 a 27 s) y entre 13 % y 20 % de las peticiones fallan con error 500, sobre todo al iniciar y confirmar pagos.",
   "impacto": {

@@ -4,7 +4,7 @@
 
 Usé IA en los cinco retos como copiloto: para leer y explorar datos, escribir borradores de código y documentos, y operar Azure desde Cloud Shell con mi aprobación. Las decisiones las tomé yo, y verifiqué cada resultado contra los datos o ejecutándolo. Esta bitácora resume qué le pedí, qué entregó, dónde se equivocó y cómo lo controlé.
 
-**En cifras:** 9 prompts clave · **8 errores de la IA detectados y corregidos** · 0 secretos en el historial del repositorio (verificado sobre los 8 commits).
+**En cifras:** 10 prompts clave · **8 errores de la IA detectados y corregidos** · 0 secretos en el historial del repositorio (verificado sobre los 8 commits).
 
 ## 1. Herramientas y modelos
 
@@ -27,6 +27,7 @@ Usé IA en los cinco retos como copiloto: para leer y explorar datos, escribir b
 | 7 | Triage con IA del Reto 4 | Esquema, catálogo cerrado, validación de citas, respaldo sin IA y casos de prueba | Revisé cada caso. El de inyección lo sustento desde mi especialización en seguridad |
 | 8 | "Inicia el Reto 3 en mi equipo" | Despliegue por Cloud Shell: app simulada, Log Analytics, alertas con correo y simulación de la falla con tiempos medidos | Escribí yo las credenciales. Revisé los tiempos contra los datos y documenté las alertas que **no** se dispararon |
 | 9 | "Verifica punto a punto contra el enunciado antes del último push" | Tabla de cumplimiento: faltaban la remediación disparada por alerta con salvaguardas (punto 14), el tablero (15), p95 y 5xx en KQL (12) y un script de despliegue reproducible | Completé todo y repetí la prueba en Azure, lo que reveló el error 8 |
+| 10 | "Sigamos con lo que faltaba" (6-oct) | Despliegue desde cero con el mismo comando del README, simulación de la falla y seguimiento del runbook hasta el escalamiento | Confirmé que el despliegue es reproducible (4 min 21 s) y que el límite de intentos y el escalamiento funcionan en Azure |
 
 ## 3. Errores de la IA y cómo los corregí
 
@@ -39,14 +40,14 @@ Usé IA en los cinco retos como copiloto: para leer y explorar datos, escribir b
 | 5 | Intentó crear la VM con tamaños sin cuota en la suscripción de prueba, y luego dejó el App Service en **Linux** (valor por defecto de la CLI), incompatible con ASP.NET sobre IIS | Errores de cuota de Azure y "Linux Runtime ASPNET is not supported" | Consultar cuotas antes de reintentar, App Service Windows explícito y documentar la adaptación | Tiempo perdido. Ningún recurso quedó huérfano |
 | 6 | Presentó Auto-Heal como la auto-remediación del Reto 3, aunque no se dispara desde una alerta ni tiene límite de intentos ni escalamiento | Revisión punto a punto contra el enunciado | Runbook disparado por alerta con límite, enfriamiento, ventana de mantenimiento, modo sugerir, verificación y escalamiento | Incumplir el punto 14 |
 | 7 | El PDF del post-mortem mostraba una lista como un solo párrafo | Revisando las páginas renderizadas | Regenerado con GFM y verificado en 3 páginas A4 | Documento menos legible para la Dirección |
-| 8 | El límite de "2 reinicios por hora" del runbook **nunca se cumplió en Azure**: el historial se perdía al leerlo (v1: fechas convertidas por PowerShell 5.1; v2: la variable devolvía el JSON ya deserializado). El código "se veía bien" y la v2 pasaba pruebas locales | Ejecutándolo en Azure: cada falla decía "intento 2 de 2" y nunca escaló | v3 con historial en texto plano, probada contra ambos comportamientos. **Verificación en Azure pendiente** (ver `reto3-azure/README.md`) | Reinicios en bucle sobre una fuga activa, el mismo patrón que escondió el incidente |
+| 8 | El límite de "2 reinicios por hora" del runbook **nunca se cumplió en Azure**: el historial se perdía al leerlo (v1: fechas convertidas por PowerShell 5.1; v2: la variable devolvía el JSON ya deserializado). El código "se veía bien" y la v2 pasaba pruebas locales | Ejecutándolo en Azure: cada falla decía "intento 2 de 2" y nunca escaló | v3 con historial en texto plano, probada contra ambos comportamientos y **verificada en Azure el 6-oct**: 2 reinicios y, al tercero, `ESCALAR` con correo de la alerta F | Reinicios en bucle sobre una fuga activa, el mismo patrón que escondió el incidente |
 
 **Lección principal:** los errores 3 y 8 solo aparecieron al **ejecutar**, no al leer el código. Por eso una salvaguarda solo la doy por buena cuando la veo funcionar en el entorno real.
 
 ## 4. Cómo validé lo que generó la IA
 
 - **Cifras:** cada número del post-mortem sale de `analizar.py`, que se puede volver a ejecutar. Ninguna se copió de una respuesta del modelo.
-- **Pruebas automáticas:** `pytest` para las trampas del parser (cambio de `#Fields`, UTC → Colombia) y para los 6 casos del triage. Pester (15 pruebas) para el script de mantenimiento, ejecutado en mi equipo.
+- **Pruebas automáticas:** `pytest` para las trampas del parser (cambio de `#Fields`, UTC → Colombia) y para los 7 casos del triage (incluido uno en que el modelo responde en inglés). Pester (15 pruebas) para el script de mantenimiento, ejecutado en mi equipo.
 - **Datos crudos:** verifiqué a mano los hitos clave, como el primer 503 en `httperr1.log` y el evento WAS 5002 en el CSV de eventos.
 - **Umbrales:** las reglas de alerta se probaron también sobre los días normales, para medir falsas alarmas.
 - **Azure:** los tiempos de detección y recuperación salen de las ejecuciones del runbook, de los logs en Log Analytics y del CSV de la carga, no de estimaciones (`reto3-azure/evidencias/RESULTADOS.md`).

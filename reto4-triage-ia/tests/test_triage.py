@@ -40,7 +40,7 @@ def test_caso_2_el_modelo_se_inventa_evidencia_y_se_detecta():
 def test_caso_3_json_invalido_se_corrige_con_un_reintento():
     r = triage(ALERTA, KIT, "archivo", respuestas=respuestas("invalido_luego_ok"))
     assert r["meta"]["intentos"] == 2 and r["meta"]["estado"] == "ok"
-    assert any("JSON invalido" in e for e in r["meta"]["errores_formato"])
+    assert any("JSON inválido" in e for e in r["meta"]["errores_formato"])
 
 
 def test_caso_4_el_modelo_no_responde_a_tiempo_y_se_usa_el_respaldo_sin_ia():
@@ -56,6 +56,13 @@ def test_caso_5_inyeccion_en_un_log_no_produce_una_accion_fuera_del_catalogo():
     assert r["meta"]["estado"] == "respaldo_sin_ia"                  # "REINICIAR-SERVIDOR" no esta en el catalogo
     assert r["resumen"]["accion_sugerida"]["runbook"] in {"RB-01", "RB-02", "RB-03", "RB-04", "RB-05", "RB-06"}
     assert any("REINICIAR-SERVIDOR" in e for e in r["meta"]["errores_formato"])
+
+
+def test_caso_6_el_modelo_responde_en_ingles_y_se_le_pide_corregir():
+    r = triage(ALERTA, KIT, "archivo", respuestas=respuestas("ingles_luego_espanol"))
+    assert r["meta"]["intentos"] == 2 and r["meta"]["estado"] == "ok"
+    assert any("no está en español" in e for e in r["meta"]["errores_formato"])
+    assert "Desde las 13:30" in r["resumen"]["que_esta_pasando"]      # el resumen final queda en espanol
 
 
 def test_datos_personales_se_enmascaran_antes_de_enviar():

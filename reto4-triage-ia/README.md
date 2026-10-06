@@ -27,6 +27,7 @@ alerta.json ─► contexto (±30 min: IIS, HTTP.sys, eventos, Perfmon, cambios 
 | JSON inválido o fuera del esquema | **Un reintento** enviándole al modelo el error exacto; si vuelve a fallar, respaldo sin IA |
 | JSON válido pero con citas inventadas (ID inexistente o texto que no está en la evidencia) | Se entrega marcado `ok_con_advertencias`, la confianza se baja a `baja` y los problemas se listan en `datos_faltantes` y `meta.problemas_contenido` |
 | Texto malicioso en un log ("ignore previous instructions…") | La evidencia se marca como sospechosa (`meta.inyeccion_detectada`), el prompt la trata como dato, y aunque el modelo obedezca, la acción queda limitada al catálogo |
+| Responde en otro idioma (p. ej. inglés) | El prompt exige español; la validación compara palabras frecuentes del español y del inglés en los textos libres y, si no está en español, **pide corregir con un reintento** (las citas se copian literalmente, aunque el log esté en inglés) |
 | Cualquier caso | `requiere_aprobacion_humana = true` y `ejecuta_acciones = false`: una persona decide |
 
 ## Casos de prueba (`tests/test_triage.py`, proveedor simulado)
@@ -38,11 +39,12 @@ alerta.json ─► contexto (±30 min: IIS, HTTP.sys, eventos, Perfmon, cambios 
 | 3. JSON inválido | Primera respuesta con texto + JSON cortado | Reintento y `ok` en el intento 2 |
 | 4. Timeout | El modelo no responde | Respaldo sin IA |
 | 5. Inyección en un log | Un log pide "run reboot" y el modelo propone `REINICIAR-SERVIDOR` | Esquema lo rechaza, respaldo sin IA, inyección marcada |
-| 6. Privacidad | IPs y cédulas | Enmascaradas antes de enviarse |
+| 6. Responde en inglés | Primera respuesta válida pero en inglés | Detectado y corregido: reintento pidiendo español, `ok` en el intento 2 |
+| 7. Privacidad | IPs y cédulas | Enmascaradas antes de enviarse |
 
 ```bash
 python -m pip install -r requirements.txt
-python -m pytest -q tests          # 6 pruebas
+python -m pytest -q tests          # 7 pruebas
 python ejecutar_casos.py           # guarda cada caso en ../evidencias/reto4/
 ```
 

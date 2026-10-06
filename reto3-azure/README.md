@@ -102,11 +102,34 @@ Detalle y capturas: `evidencias/RESULTADOS.md` (sección "Prueba 2"), `evidencia
 | Cuándo no actuar | **Sí.** Con la app sana, cada nueva ejecución de la alerta registró `NO_ACTUA` |
 | Trazabilidad | **Sí.** Cada decisión quedó como `REMEDIACION {json}` en la salida de los jobs y en el tablero (49 `NO_ACTUA`, 11 `ACTUA`, 11 `RECUPERADO`) |
 | Tablero para Dirección y NOC | **Sí.** Workbook con disponibilidad cada 15 min, decisiones del runbook, 5xx por minuto, p95, memoria y endpoints con error (capturas 10–12) |
-| **Límite de intentos y escalamiento** | **No, todavía.** En Azure el contador se perdía (v1 y v2) y el runbook siguió reiniciando sin escalar. La v3 (historial como texto plano) pasó las pruebas locales; **falta verificarla en Azure con la alerta F**. Es el primer pendiente |
+| **Límite de intentos y escalamiento** | En la prueba 2 **no**: el contador se perdía (v1 y v2) y el runbook reiniciaba sin escalar. Corregido en la v3 y **verificado en Azure en la prueba 3** (abajo) |
 
 **Observación sobre la métrica de memoria:** en la prueba 2 (128 KB por operación) la memoria de plataforma (`MemoryWorkingSet`) no pasó de ~150 MB, aunque la app fallaba al superar 600 MB de memoria administrada. Hipótesis: los bloques grandes se reservan sin que el sistema operativo los cuente como memoria en uso. Lección: la alerta temprana no debe depender solo de la métrica de plataforma; conviene publicar una métrica propia de la aplicación (tamaño del caché).
 
-**Pendientes, en orden:** 1) desplegar desde cero con `desplegar.sh` (el grupo de recursos se eliminó el 5-oct), publicar la v3 del runbook y repetir la prueba hasta ver `ESCALAR` y el correo de la alerta F; 2) captura del correo de alerta y del presupuesto; 3) eliminar de nuevo el grupo de recursos.
+### Prueba 3 (6-oct): despliegue desde cero y límite de intentos verificado
+
+Grupo de recursos nuevo, creado con `desplegar.sh` sin intervención manual en **4 min 21 s**. Detalle: `evidencias/RESULTADOS.md` (sección "Prueba 3"). Capturas: 13–18 (despliegue, runbook, alertas y consultas KQL), 19–21 (tablero con las decisiones `ESCALAR`) y 22–23 (presupuesto de USD 10 con alertas al 50 % del costo previsto y al 90 % del costo real).
+
+| Hora (Bogotá) | Hecho |
+|---|---|
+| 08:46 | Ciclo 1: la app empieza a fallar |
+| 08:49 | Alerta B: correo |
+| 08:51 | Runbook **ACTUA** (intento 1 de 2) → recuperado en 30 s |
+| 08:56 | Ciclo 2: runbook **ACTUA** (intento 2 de 2) → recuperado en 30 s |
+| 09:01 | Ciclo 3: la app falla de nuevo |
+| **09:05** | Runbook **ESCALAR**: "Ya hubo 2 reinicios en 60 min (límite 2). No se reinicia: la falla vuelve, requiere una persona". La app queda caída a propósito |
+| **09:10** | **Alerta F: correo de escalamiento a la persona de turno** |
+| 09:13 | La persona interviene: rollback de la versión y reinicio → servicio sano a las 09:14 |
+
+| Salvaguarda | Verificada en Azure |
+|---|---|
+| Se dispara sola desde una alerta | Sí (pruebas 2 y 3) |
+| Cuándo no actuar (app sana, enfriamiento) | Sí (pruebas 2 y 3) |
+| **Límite de intentos (2 por hora)** | **Sí (prueba 3)** |
+| **Escalar a una persona** | **Sí (prueba 3): runbook `ESCALAR` + correo de la alerta F** |
+| Trazabilidad | Sí: cada decisión en la salida de los jobs, en Log Analytics y en el tablero |
+
+**Recursos:** el grupo de recursos se elimina al terminar cada prueba (`az group delete`).
 
 Tiempos en UTC en los logs (Bogotá = UTC-5), igual que en el Reto 1.
 
