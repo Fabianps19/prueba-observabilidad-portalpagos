@@ -4,6 +4,8 @@
 
 Punto de partida, medido con los datos de la semana del 14 al 20 de septiembre: la degradación del 18-sep tardó **2 h 14 min** en detectarse, y la detectó un cliente; **0 %** de los incidentes se detectan antes que el usuario, y el NOC reportó 100 % de disponibilidad cuando la real fue 98,6 %.
 
+**Mi enfoque.** Mi formación y experiencia en innovación me han enseñado a empezar por los problemas y necesidades del core del negocio, no por la tecnología. En Skandia eso significa priorizar lo que afecta directamente a los clientes y a los servicios que generan valor, como la continuidad de los canales transaccionales, y medir cada iniciativa por ese impacto. Quiero liderar proyectos que apliquen a esas necesidades de punta a punta y, antes de abrir frentes nuevos, **inventariar y llevar a término los proyectos que ya estén en curso**.
+
 **Semana 1, antes de cualquier iniciativa: contener lo urgente con los dueños de cada tema.** Liberar disco preservando los volcados de memoria, coordinar con desarrollo la corrección o el rollback de la v2.3.1, rotar la contraseña expuesta en el script y verificar posibles cobros duplicados del 18-sep.
 
 ## Iniciativas, priorizadas
@@ -33,12 +35,13 @@ Cada meta se mide con las mismas consultas del Reto 3, para que el resultado no 
 
 ## Lo que necesito que mi líder me destrabe
 
-Acceso de lectura a producción y un ambiente de pruebas · espacio en el comité de cambios y un contacto en desarrollo · una gMSA para el mantenimiento y el canal de Teams del NOC · presupuesto de ingesta (~USD 10–30/mes por servidor) y el SLO acordado con negocio.
+La lista de proyectos de automatización y observabilidad en curso, para priorizarlos y cerrarlos · acceso de lectura a producción y un ambiente de pruebas · espacio en el comité de cambios y un contacto en desarrollo · una gMSA para el mantenimiento y el canal de Teams del NOC · presupuesto de ingesta (~USD 10–30/mes por servidor) y el SLO acordado con negocio.
 
 ## Lo que NO haría
 
 - **Reinicios automáticos sin modo sugerir:** sobre una fuga solo la esconden, como el script de 2019.
 - **IA que ejecute acciones:** sugiere desde un catálogo cerrado; decide una persona.
 - **Comprar herramientas antes de la línea base:** primero medir con lo que ya hay en Azure.
+- **Dejar proyectos a medias por abrir otros nuevos:** primero se cierra lo que está en curso o se decide explícitamente detenerlo.
 - **Tocar el código de la aplicación:** la fuga la corrige desarrollo; yo aseguro que se detecte a tiempo.
 - **Reemplazar de golpe lo del NOC:** las alertas nuevas conviven hasta demostrar que no hacen ruido.
